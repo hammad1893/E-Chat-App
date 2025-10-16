@@ -8,6 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 class ChatProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  // ✅ ADD: Message cache per chat
+  final Map<String, List<MessageModel>> _messageCache = {};
+  final Map<String, Stream<List<MessageModel>>> _streamCache = {};
 
   String getChatId(String user1, String user2) {
     List<String> users = [user1, user2];
@@ -37,25 +40,59 @@ class ChatProvider with ChangeNotifier {
     String chatId,
     String currentUserId,
   ) {
-    return _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs
-              .map((doc) {
-                final data = doc.data();
-                if (data['hiddenFor'] != null &&
-                    (data['hiddenFor'] as List).contains(currentUserId)) {
-                  return null; // hidden → filtered out
-                }
-                return MessageModel.fromMap(data, doc.id);
-              })
-              .whereType<MessageModel>() // removes nulls
-              .toList();
-        });
+    // ✅ RETURN CACHED STREAM if available
+    if (_streamCache.containsKey(chatId)) {
+      return _streamCache[chatId]!;
+    }
+
+    // ✅ CREATE NEW STREAM and cache it
+    final stream =
+        _firestore
+            .collection('chats')
+            .doc(chatId)
+            .collection('messages')
+            .orderBy('timestamp', descending: true)
+            .snapshots()
+            .asyncMap((snapshot) async {
+              // Quick processing without heavy operations
+              final messages =
+                  snapshot.docs
+                      .map((doc) {
+                        final data = doc.data();
+                        if (data['hiddenFor'] != null &&
+                            (data['hiddenFor'] as List).contains(
+                              currentUserId,
+                            )) {
+                          return null;
+                        }
+                        return MessageModel.fromMap(data, doc.id);
+                      })
+                      .whereType<MessageModel>()
+                      .toList();
+
+              // ✅ UPDATE CACHE
+              _messageCache[chatId] = messages;
+
+              return messages;
+            })
+            .asBroadcastStream();
+
+    // ✅ CACHE THE STREAM
+    _streamCache[chatId] = stream;
+
+    return stream;
+  }
+
+  // ✅ ADD: Get cached messages instantly
+   // ✅ ADD: Get cached messages method
+  List<MessageModel>? getCachedMessages(String chatId) {
+    return _messageCache[chatId];
+  }
+
+  // ✅ CLEAR CACHE when needed
+  void clearMessageCache(String chatId) {
+    _messageCache.remove(chatId);
+    _streamCache.remove(chatId);
   }
 
   // FIXED: Enhanced method to check if current user is blocked by another user
@@ -81,28 +118,13 @@ class ChatProvider with ChangeNotifier {
     if (currentUser == null) return false;
 
     try {
-      // Check if receiver has blocked current user (they blocked me)
-      final receiverDoc =
-          await _firestore.collection('users').doc(receiverId).get();
-      final receiverBlockedUsers = List<String>.from(
-        receiverDoc.data()?['blockedUsers'] ?? [],
-      );
-
-      if (receiverBlockedUsers.contains(currentUser.uid)) {
-        return false; // They blocked me - I cannot send
+      // ❌ If I blocked them, I cannot send
+      final iBlockedThem = await isUserBlocked(receiverId);
+      if (iBlockedThem) {
+        return false;
       }
 
-      // Check if current user has blocked receiver (I blocked them)
-      final currentUserDoc =
-          await _firestore.collection('users').doc(currentUser.uid).get();
-      final currentUserBlockedUsers = List<String>.from(
-        currentUserDoc.data()?['blockedUsers'] ?? [],
-      );
-
-      if (currentUserBlockedUsers.contains(receiverId)) {
-        return false; // I blocked them - they cannot send to me
-      }
-
+      // ✅ If they blocked me, I can still send (messages just won't deliver)
       return true;
     } catch (e) {
       print('Error checking message permissions: $e');
@@ -124,11 +146,14 @@ class ChatProvider with ChangeNotifier {
     final chatId = getChatId(senderId, receiverId);
 
     try {
-      // ✅ Check if sender can send message (considering both sides blocking)
-      final canSend = await canSendMessage(receiverId);
-      if (!canSend) {
-        throw 'Cannot send message. You may have been blocked or have blocked this user.';
+      // ✅ Check if SENDER has blocked receiver - DON'T allow sending
+      final iBlockedReceiver = await isUserBlocked(receiverId);
+      if (iBlockedReceiver) {
+        throw 'You have blocked this contact. Unblock to send messages.';
       }
+
+      // ✅ Check if receiver has blocked sender - ALLOW sending but mark as undelivered
+      final isReceiverBlockingMe = await isBlockedByUser(receiverId);
 
       // Build message
       final messageData = {
@@ -140,17 +165,15 @@ class ChatProvider with ChangeNotifier {
         'mediaUrl': mediaUrl,
         'messageType': messageType,
         if (contactInfo != null) 'contactInfo': contactInfo,
-        'delivered': true,
+        'delivered': !isReceiverBlockingMe,
       };
-
-      // Add message to Firestore
       await _firestore
           .collection('chats')
           .doc(chatId)
           .collection('messages')
           .add(messageData);
 
-      // Update chat document
+      // Prepare last message text
       String lastMessageText = text.trim();
       if (lastMessageText.isEmpty) {
         switch (messageType) {
@@ -171,12 +194,18 @@ class ChatProvider with ChangeNotifier {
         }
       }
 
+      // ✅ Update chat document
       await _firestore.collection('chats').doc(chatId).set({
         'lastMessage': lastMessageText,
         'lastMessageTime': FieldValue.serverTimestamp(),
         'participants': [senderId, receiverId],
+        'blockedBy': isReceiverBlockingMe ? receiverId : null,
+        'hiddenFor': isReceiverBlockingMe ? [receiverId] : [],
         'updatedAt': FieldValue.serverTimestamp(),
-        'unreadCounts': {senderId: 0, receiverId: FieldValue.increment(1)},
+        'unreadCounts': {
+          senderId: 0,
+          receiverId: isReceiverBlockingMe ? 0 : FieldValue.increment(1),
+        },
       }, SetOptions(merge: true));
 
       notifyListeners();
@@ -406,6 +435,9 @@ class ChatProvider with ChangeNotifier {
       final blockedUsers = List<String>.from(
         userDoc.data()?['blockedUsers'] ?? [],
       );
+      print(
+        '🔵 Checking if user $otherUserId is blocked by ${currentUser.uid}: ${blockedUsers.contains(otherUserId)}',
+      );
       return blockedUsers.contains(otherUserId);
     } catch (e) {
       print('Error checking blocked status: $e');
@@ -420,6 +452,7 @@ class ChatProvider with ChangeNotifier {
     return _firestore.collection('users').doc(currentUser.uid).snapshots().map((
       snapshot,
     ) {
+      print("Blocked users: ${snapshot.data()?['blockedUsers']}");
       return List<String>.from(snapshot.data()?['blockedUsers'] ?? []);
     });
   }
@@ -503,382 +536,3 @@ class ChatProvider with ChangeNotifier {
     }
   }
 }
-
-// lib/providers/chat_provider.dart
-// import 'dart:convert';
-// import 'package:chat_app/model/chatmodel.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:flutter/foundation.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:http/http.dart' as http;
-
-// class ChatProvider with ChangeNotifier {
-//   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-//   final FirebaseAuth _auth = FirebaseAuth.instance;
-
-//   // Replace with your actual FCM server key from Firebase Console
-//   // Get it from: Firebase Console → Project Settings → Cloud Messaging → Server Key
-//   static const String serverKey = "YOUR_ACTUAL_SERVER_KEY_HERE";
-
-//   String getChatId(String user1, String user2) {
-//     List<String> users = [user1, user2];
-//     users.sort();
-//     return "${users[0]}_${users[1]}";
-//   }
-
-//   // Get user status stream
-//   Stream<Map<String, dynamic>> getUserStatusStream(String userId) {
-//     return _firestore
-//         .collection('users')
-//         .doc(userId)
-//         .snapshots()
-//         .map((snapshot) => snapshot.data() ?? {});
-//   }
-
-//   // Update user's online status
-//   Future<void> updateUserStatus(bool isOnline) async {
-//     final user = _auth.currentUser;
-//     if (user != null) {
-//       await _firestore.collection('users').doc(user.uid).set({
-//         'isOnline': isOnline,
-//         'lastSeen': FieldValue.serverTimestamp(),
-//       }, SetOptions(merge: true));
-//     }
-//   }
-
-//   // Save FCM token to user document
-//   Future<void> saveUserFCMToken(String token) async {
-//     final user = _auth.currentUser;
-//     if (user != null) {
-//       await _firestore.collection('users').doc(user.uid).set({
-//         'fcmToken': token,
-//         'tokenUpdatedAt': FieldValue.serverTimestamp(),
-//       }, SetOptions(merge: true));
-//     }
-//   }
-
-//   // Get messages stream for a specific chat
-//   Stream<List<MessageModel>> getMessagesStream(String chatId) {
-//     return _firestore
-//         .collection('chats')
-//         .doc(chatId)
-//         .collection('messages')
-//         .orderBy('timestamp', descending: true)
-//         .snapshots()
-//         .map(
-//           (snapshot) =>
-//               snapshot.docs
-//                   .map((doc) => MessageModel.fromMap(doc.data(), doc.id))
-//                   .toList(),
-//         );
-//   }
-
-//   // Send a message with notification
-//   Future<void> sendMessage({
-//     required String senderId,
-//     required String receiverId,
-//     required String text,
-//     String? mediaUrl,
-//     String messageType = 'text',
-//     Map<String, dynamic>? contactInfo,
-//   }) async {
-//     if (text.trim().isEmpty && mediaUrl == null && contactInfo == null) return;
-
-//     final chatId = getChatId(senderId, receiverId);
-
-//     try {
-//       final messageData = {
-//         'senderId': senderId,
-//         'receiverId': receiverId,
-//         'text': text.trim(),
-//         'timestamp': FieldValue.serverTimestamp(),
-//         'isRead': false,
-//         'mediaUrl': mediaUrl,
-//         'messageType': messageType,
-//         if (contactInfo != null) 'contactInfo': contactInfo,
-//       };
-
-//       // Add message to messages subcollection
-//       await _firestore
-//           .collection('chats')
-//           .doc(chatId)
-//           .collection('messages')
-//           .add(messageData);
-
-//       // Update chat document with last message info
-//       await _firestore.collection('chats').doc(chatId).set({
-//         'lastMessage': _getDisplayText(text.trim(), messageType),
-//         'lastMessageTime': FieldValue.serverTimestamp(),
-//         'participants': [senderId, receiverId],
-//         'updatedAt': FieldValue.serverTimestamp(),
-//       }, SetOptions(merge: true));
-
-//       // Update unread count for receiver
-//       await _updateUnreadCount(chatId, receiverId, true);
-
-//       // Send push notification
-//       await _sendNotificationToUser(
-//         receiverId: receiverId,
-//         senderId: senderId,
-//         message:
-//             text.trim().isNotEmpty
-//                 ? text.trim()
-//                 : _getDisplayText("", messageType),
-//         messageType: messageType,
-//       );
-
-//       notifyListeners();
-//     } catch (e) {
-//       print('Error sending message: $e');
-//       rethrow;
-//     }
-//   }
-
-//   String _getDisplayText(String text, String messageType) {
-//     if (text.isNotEmpty) return text;
-
-//     switch (messageType) {
-//       case 'image':
-//         return '📷 Photo';
-//       case 'audio':
-//         return '🎤 Voice message';
-//       case 'document':
-//         return '📄 Document';
-//       case 'contact':
-//         return '👤 Contact';
-//       default:
-//         return 'Message';
-//     }
-//   }
-
-//   // Send notification to user (individual chat)
-//   Future<void> _sendNotificationToUser({
-//     required String receiverId,
-//     required String senderId,
-//     required String message,
-//     String messageType = 'text',
-//   }) async {
-//     try {
-//       // Get receiver's FCM token and details
-//       final receiverDoc =
-//           await _firestore.collection('users').doc(receiverId).get();
-//       final senderDoc =
-//           await _firestore.collection('users').doc(senderId).get();
-
-//       if (!receiverDoc.exists || !senderDoc.exists) {
-//         print('User document not found');
-//         return;
-//       }
-
-//       final fcmToken = receiverDoc.data()?['fcmToken'];
-//       final senderName = senderDoc.data()?['name'] ?? 'Someone';
-//       final senderImage = senderDoc.data()?['profileImage'] ?? '';
-//       final receiverPhone = receiverDoc.data()?['phone'] ?? '';
-
-//       if (fcmToken == null || fcmToken.isEmpty) {
-//         print('No FCM token found for receiver');
-//         return;
-//       }
-
-//       await sendPushNotification(
-//         token: fcmToken,
-//         title: senderName,
-//         body: message,
-//         data: {
-//           'senderId': senderId,
-//           'receiverId': receiverId,
-//           'type': 'chat',
-//           'name': senderName,
-//           'image': senderImage,
-//           'phone': receiverPhone,
-//           'messageType': messageType,
-//         },
-//       );
-//     } catch (e) {
-//       print('Error sending notification to user: $e');
-//     }
-//   }
-
-//   // Generic push notification sender
-//   Future<void> sendPushNotification({
-//     required String token,
-//     required String title,
-//     required String body,
-//     required Map<String, dynamic> data,
-//   }) async {
-//     if (serverKey.isEmpty ||
-//         serverKey.contains('YOUR_ACTUAL_SERVER_KEY_HERE')) {
-//       print('⚠️ FCM Server Key not configured properly');
-//       print('Please get your server key from:');
-//       print(
-//         'Firebase Console → Project Settings → Cloud Messaging → Server Key',
-//       );
-//       return;
-//     }
-
-//     try {
-//       final response = await http.post(
-//         Uri.parse('https://fcm.googleapis.com/fcm/send'),
-//         headers: <String, String>{
-//           'Content-Type': 'application/json',
-//           'Authorization': 'key=$serverKey',
-//         },
-//         body: jsonEncode({
-//           'to': token,
-//           'notification': {
-//             'title': title,
-//             'body': body,
-//             'sound': 'default',
-//             'badge': '1',
-//           },
-//           'data': {'click_action': 'FLUTTER_NOTIFICATION_CLICK', ...data},
-//           'priority': 'high',
-//         }),
-//       );
-
-//       if (response.statusCode == 200) {
-//         final responseData = jsonDecode(response.body);
-//         if (kDebugMode) {
-//           print(
-//             "✅ Push notification sent successfully: ${responseData['success']}",
-//           );
-//         }
-//       } else {
-//         if (kDebugMode) {
-//           print(
-//             "❌ Failed to send push notification: ${response.statusCode} - ${response.body}",
-//           );
-//         }
-//       }
-//     } catch (e) {
-//       print("❌ Error sending push notification: $e");
-//     }
-//   }
-
-//   // ... rest of your ChatProvider methods (markMessagesAsRead, etc.)
-//   Future<void> markMessagesAsRead(String chatId, String userId) async {
-//     try {
-//       final messages =
-//           await _firestore
-//               .collection('chats')
-//               .doc(chatId)
-//               .collection('messages')
-//               .where('receiverId', isEqualTo: userId)
-//               .where('isRead', isEqualTo: false)
-//               .get();
-
-//       if (messages.docs.isEmpty) return;
-
-//       final batch = _firestore.batch();
-//       for (final doc in messages.docs) {
-//         batch.update(doc.reference, {'isRead': true});
-//       }
-
-//       await batch.commit();
-
-//       // Reset unread count for this user
-//       await _updateUnreadCount(chatId, userId, false);
-
-//       notifyListeners();
-//     } catch (e) {
-//       print('Error marking messages as read: $e');
-//       rethrow;
-//     }
-//   }
-
-//   // Update unread count
-//   Future<void> _updateUnreadCount(
-//     String chatId,
-//     String userId,
-//     bool increment,
-//   ) async {
-//     try {
-//       final chatDoc = _firestore.collection('chats').doc(chatId);
-//       final chatData = await chatDoc.get();
-
-//       final unreadCounts = Map<String, dynamic>.from(
-//         chatData.data()?['unreadCounts'] ?? {},
-//       );
-
-//       final currentCount = (unreadCounts[userId] ?? 0) as int;
-//       unreadCounts[userId] = increment ? currentCount + 1 : 0;
-
-//       await chatDoc.set({
-//         'unreadCounts': unreadCounts,
-//         'participants': [chatId.split('_')[0], chatId.split('_')[1]],
-//       }, SetOptions(merge: true));
-//     } catch (e) {
-//       print('Error updating unread count: $e');
-//       rethrow;
-//     }
-//   }
-
-//   // Get unread messages count for a user across all chats
-//   Stream<int> getUnreadCount(String userId) {
-//     return _firestore
-//         .collection('chats')
-//         .where('participants', arrayContains: userId)
-//         .snapshots()
-//         .map(
-//           (snapshot) => snapshot.docs.fold(0, (total, doc) {
-//             final unreadCounts = Map<String, dynamic>.from(
-//               doc.data()['unreadCounts'] ?? {},
-//             );
-//             return total + (unreadCounts[userId] ?? 0) as int;
-//           }),
-//         );
-//   }
-
-//   // Get chat list for a user
-//   Stream<List<Map<String, dynamic>>> getChats(String userId) {
-//     return _firestore
-//         .collection('chats')
-//         .where('participants', arrayContains: userId)
-//         .orderBy('updatedAt', descending: true)
-//         .snapshots()
-//         .map(
-//           (snapshot) =>
-//               snapshot.docs
-//                   .map((doc) => {'chatId': doc.id, ...doc.data()})
-//                   .toList(),
-//         );
-//   }
-
-//   // Delete a single message
-//   Future<void> deleteMessage(String chatId, String messageId) async {
-//     try {
-//       await _firestore
-//           .collection('chats')
-//           .doc(chatId)
-//           .collection('messages')
-//           .doc(messageId)
-//           .delete();
-
-//       notifyListeners();
-//     } catch (e) {
-//       print('Error deleting message: $e');
-//       rethrow;
-//     }
-//   }
-
-//   // Delete multiple messages
-//   Future<void> deleteMessages(String chatId, List<String> messageIds) async {
-//     try {
-//       final batch = _firestore.batch();
-//       for (final id in messageIds) {
-//         final docRef = _firestore
-//             .collection('chats')
-//             .doc(chatId)
-//             .collection('messages')
-//             .doc(id);
-//         batch.delete(docRef);
-//       }
-//       await batch.commit();
-//       notifyListeners();
-//     } catch (e) {
-//       print('Error deleting messages: $e');
-//       rethrow;
-//     }
-//   }
-
-// }

@@ -15,6 +15,7 @@ class ContactInfoScreen extends StatefulWidget {
   final List<Map<String, dynamic>> mediaMessages;
   final List<Map<String, dynamic>> linkMessages;
   final List<Map<String, dynamic>> documentMessages;
+  final String receiverId;
 
   const ContactInfoScreen({
     super.key,
@@ -26,6 +27,7 @@ class ContactInfoScreen extends StatefulWidget {
     required this.mediaMessages,
     required this.linkMessages,
     required this.documentMessages,
+    required this.receiverId,
   });
 
   @override
@@ -50,26 +52,31 @@ class _ContactInfoScreenState extends State<ContactInfoScreen> {
   Future<void> _checkBlockStatus() async {
     try {
       final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-      final isBlocked = await chatProvider.isUserBlocked(widget.contactPhone);
-      setState(() {
-        _isBlocked = isBlocked;
-        _isLoadingBlockStatus = false;
-      });
+      final isBlocked = await chatProvider.isUserBlocked(widget.receiverId);
+      
+      if (mounted) {
+        setState(() {
+          _isBlocked = isBlocked;
+          _isLoadingBlockStatus = false;
+        });
+      }
     } catch (e) {
-      print('Error checking block status: $e');
-      setState(() {
-        _isLoadingBlockStatus = false;
-      });
+      print('❌ Error checking block status: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingBlockStatus = false;
+        });
+      }
     }
   }
 
-  // Block/Unblock user
+  // ✅ FIXED: Block/Unblock using receiverId
   Future<void> _toggleBlockUser() async {
     try {
       final chatProvider = Provider.of<ChatProvider>(context, listen: false);
 
       if (_isBlocked) {
-        await chatProvider.unblockUser(widget.contactPhone);
+        await chatProvider.unblockUser(widget.receiverId);
         setState(() {
           _isBlocked = false;
         });
@@ -80,7 +87,7 @@ class _ContactInfoScreenState extends State<ContactInfoScreen> {
           ),
         );
       } else {
-        await chatProvider.blockUser(widget.contactPhone);
+        await chatProvider.blockUser(widget.receiverId);
         setState(() {
           _isBlocked = true;
         });
@@ -91,11 +98,20 @@ class _ContactInfoScreenState extends State<ContactInfoScreen> {
           ),
         );
       }
+      
+      // ✅ Notify chat screen to refresh
+      _notifyChatScreen();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Error: $e'), 
+          backgroundColor: Colors.red
+        ),
       );
     }
+  }
+    void _notifyChatScreen() {
+    print('🔄 Block status changed - chat screen should refresh');
   }
 
   // Show block confirmation dialog
