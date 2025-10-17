@@ -8,6 +8,7 @@ import 'package:chat_app/widget/textfield.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Signuppage extends StatefulWidget {
   const Signuppage({super.key});
@@ -154,11 +155,11 @@ class _SignuppageState extends State<Signuppage> {
                   password: passwordController.text,
                 );
                 AppUtils.showToast("Account created successfully");
-                print("Account created successfully");
-                print("email is ${emailcontroller.text}");
-                print("name is ${nameController.text}");
-                print(" time is ${DateTime.now()}");
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('is_logged_in', true);
+
                 Navigator.push(
+                  // ignore: use_build_context_synchronously
                   context,
                   MaterialPageRoute(builder: (context) => Userinfoscreen()),
                 );
@@ -197,18 +198,23 @@ class _SignuppageState extends State<Signuppage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Container(
-                  height: size.height * .07,
-                  width: size.width * .175,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Color(0xff40C4FF)),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Center(
-                    child: FaIcon(
-                      FontAwesomeIcons.google,
-                      color: Colors.white,
-                      size: 37,
+                GestureDetector(
+                  onTap: () {
+                    // user.signInWithGoogle(context);
+                  },
+                  child: Container(
+                    height: size.height * .07,
+                    width: size.width * .175,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Color(0xff40C4FF)),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: FaIcon(
+                        FontAwesomeIcons.google,
+                        color: Colors.white,
+                        size: 37,
+                      ),
                     ),
                   ),
                 ),

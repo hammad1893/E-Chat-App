@@ -1,362 +1,3 @@
-// import 'package:chat_app/constants/text.dart';
-// import 'package:chat_app/homepage.dart/addgroup.dart';
-// import 'package:chat_app/homepage.dart/showfriendlist.dart';
-// import 'package:flutter/material.dart';
-
-// class Homescreen extends StatefulWidget {
-//   const Homescreen({super.key});
-
-//   @override
-//   State<Homescreen> createState() => _HomescreenState();
-// }
-
-// class _HomescreenState extends State<Homescreen> {
-//   bool isclicked = false;
-//   bool isSearching = false;
-//   final GlobalKey _iconKey = GlobalKey();
-//   List<Map<String, dynamic>> chatlist = [
-//     {
-//       "name": "Amit",
-//       "message": "Hello",
-//       "time": "12:00",
-//       "image": "assets/images/profile.png",
-//       "newmessage": '4',
-//     },
-//     {
-//       "name": "Sachin",
-//       "message": "Hello",
-//       "time": "12:00",
-//       "image": "assets/images/profile.png",
-//       "newmessage": '4',
-//     },
-//     {
-//       "name": "Rahul",
-//       "message": "no it's  not done",
-//       "time": "06:45",
-//       "image": "assets/images/profile.png",
-//       "newmessage": '3',
-//     },
-//   ];
-//   @override
-//   Widget build(BuildContext context) {
-//     Size size = MediaQuery.of(context).size;
-//     return Scaffold(
-//       backgroundColor: Color(0xff292929),
-//       body: Column(
-//         children: [
-//           Container(
-//             width: double.infinity,
-//             height: size.height * .14,
-//             decoration: BoxDecoration(
-//               color: Color(0xff135CAF),
-//               borderRadius: BorderRadius.only(
-//                 bottomRight: Radius.circular(size.width * 0.1),
-//               ),
-//             ),
-//             child: Padding(
-//               padding: const EdgeInsets.only(top: 40, right: 20),
-//               child:
-//                   isSearching
-//                       ? Padding(
-//                         padding: const EdgeInsets.only(left: 20, right: 10),
-//                         child: Row(
-//                           children: [
-//                             Expanded(
-//                               child: TextField(
-//                                 cursorColor: Color(0xff135CAF),
-//                                 decoration: InputDecoration(
-//                                   hintText: 'Search...',
-
-//                                   fillColor: Colors.white,
-//                                   filled: true,
-//                                   hintStyle: TextStyle(
-//                                     color: Color(0xff9A9BB1),
-//                                   ),
-//                                   border: OutlineInputBorder(
-//                                     borderRadius: BorderRadius.circular(20),
-//                                   ),
-//                                   enabledBorder: OutlineInputBorder(
-//                                     borderRadius: BorderRadius.circular(20),
-//                                     borderSide: BorderSide.none,
-//                                   ),
-//                                 ),
-//                                 style: Apptexts.bodystyle.copyWith(
-//                                   color: Colors.black,
-//                                 ),
-//                               ),
-//                             ),
-//                             IconButton(
-//                               icon: Icon(
-//                                 Icons.cancel,
-//                                 color: Colors.white,
-//                                 size: 30,
-//                               ),
-//                               onPressed: () {
-//                                 setState(() {
-//                                   isSearching = false;
-//                                 });
-//                               },
-//                             ),
-//                           ],
-//                         ),
-//                       )
-//                       : Row(
-//                         children: [
-//                           Image.asset(
-//                             'assets/images/Logo.png',
-//                             width: size.width * .25,
-//                           ),
-//                           Text(
-//                             "E-Chat",
-//                             style: Apptexts.titlestyle.copyWith(
-//                               color: Colors.white,
-//                             ),
-//                           ),
-//                           Spacer(),
-//                           IconButton(
-//                             icon: Icon(
-//                               Icons.search,
-//                               color: Colors.white,
-//                               size: 30,
-//                             ),
-//                             onPressed: () {
-//                               setState(() {
-//                                 isSearching = true;
-//                               });
-//                             },
-//                           ),
-//                           IconButton(
-//                             key: _iconKey,
-//                             icon:
-//                                 isclicked
-//                                     ? Icon(
-//                                       Icons.cancel,
-//                                       color: Colors.white,
-//                                       size: 32,
-//                                     )
-//                                     : Icon(
-//                                       Icons.add,
-//                                       color: Colors.white,
-//                                       size: 32,
-//                                     ),
-//                             onPressed: () async {
-//                               if (!isclicked) {
-//                                 setState(() => isclicked = true);
-//                                 await (BuildContext context) async {
-//                                   final RenderBox button =
-//                                       _iconKey.currentContext!
-//                                               .findRenderObject()
-//                                           as RenderBox;
-//                                   final RenderBox overlay =
-//                                       Overlay.of(
-//                                             context,
-//                                           ).context.findRenderObject()
-//                                           as RenderBox;
-
-//                                   final RelativeRect position =
-//                                       RelativeRect.fromRect(
-//                                         Rect.fromPoints(
-//                                           button.localToGlobal(
-//                                             Offset.zero,
-//                                             ancestor: overlay,
-//                                           ),
-//                                           button.localToGlobal(
-//                                             button.size.bottomRight(
-//                                               Offset.zero,
-//                                             ),
-//                                             ancestor: overlay,
-//                                           ),
-//                                         ),
-//                                         Offset.zero & overlay.size,
-//                                       );
-
-//                                   return showMenu(
-//                                     context: context,
-//                                     position: position,
-//                                     color: const Color(0xff4a4b62),
-//                                     shape: RoundedRectangleBorder(
-//                                       borderRadius: BorderRadius.circular(12),
-//                                     ),
-//                                     items: [
-//                                       PopupMenuItem(
-//                                         onTap: () {
-//                                           debugPrint("Add Friend tapped");
-//                                           Navigator.push(
-//                                             context,
-//                                             MaterialPageRoute(
-//                                               builder:
-//                                                   (context) => Friendlist(),
-//                                             ),
-//                                           );
-//                                         },
-//                                         child: Row(
-//                                           children: const [
-//                                             Icon(
-//                                               Icons.person,
-//                                               color: Color(0xff9A9BB1),
-//                                               size: 30,
-//                                             ),
-//                                             SizedBox(width: 10),
-//                                             Text(
-//                                               "Add Friend",
-//                                               style: TextStyle(
-//                                                 color: Colors.white,
-//                                                 fontWeight: FontWeight.w500,
-//                                               ),
-//                                             ),
-//                                           ],
-//                                         ),
-//                                       ),
-//                                       PopupMenuItem(
-//                                         onTap: () {
-//                                           debugPrint("Create Group tapped");
-//                                           Navigator.push(
-//                                             context,
-//                                             MaterialPageRoute(
-//                                               builder:
-//                                                   (context) => const Addgroup(),
-//                                             ),
-//                                           );
-//                                         },
-//                                         child: Row(
-//                                           children: const [
-//                                             Icon(
-//                                               Icons.groups_2,
-//                                               color: Color(0xff9A9BB1),
-//                                               size: 30,
-//                                             ),
-//                                             SizedBox(width: 10),
-//                                             Text(
-//                                               "Create Group",
-//                                               style: TextStyle(
-//                                                 color: Colors.white,
-//                                                 fontWeight: FontWeight.w500,
-//                                               ),
-//                                             ),
-//                                           ],
-//                                         ),
-//                                       ),
-//                                     ],
-//                                   );
-//                                 }(context);
-//                                 setState(() => isclicked = false);
-//                               } else {
-//                                 setState(() => isclicked = false);
-//                               }
-//                             },
-//                           ),
-//                         ],
-//                       ),
-//             ),
-//           ),
-//           SizedBox(height: size.height * .02),
-//           ListView.builder(
-//             padding: EdgeInsets.zero,
-//             shrinkWrap: true,
-//             itemCount: chatlist.length,
-//             itemBuilder: (BuildContext context, int index) {
-//               return InkWell(
-//                 onTap: () {
-//                   // Navigator.push(
-//                   //   context,
-//                   //   MaterialPageRoute(
-//                   //     builder:
-//                   //         (context) => Chatscreen(
-//                   //           // receiverId:
-//                   //           // name: chatlist[index]['name'],
-//                   //           // image: chatlist[index]['image'],
-//                   //         ),
-//                   //   ),
-//                   // );
-//                 },
-//                 child: Row(
-//                   children: [
-//                     Padding(
-//                       padding: const EdgeInsets.only(
-//                         left: 20,
-//                         top: 10,
-//                         bottom: 10,
-//                       ),
-//                       child: CircleAvatar(
-//                         radius: 25,
-//                         backgroundImage: AssetImage(chatlist[index]['image']),
-//                       ),
-//                     ),
-//                     Padding(
-//                       padding: const EdgeInsets.only(
-//                         left: 15,
-//                         top: 10,
-//                         bottom: 10,
-//                       ),
-//                       child: Column(
-//                         crossAxisAlignment: CrossAxisAlignment.start,
-//                         children: [
-//                           Text(
-//                             chatlist[index]['name'],
-//                             style: Apptexts.subtitlestyle.copyWith(
-//                               color: Colors.white,
-//                               fontWeight: FontWeight.bold,
-//                               fontSize: size.width * .045,
-//                             ),
-//                           ),
-//                           SizedBox(height: 3),
-//                           Text(
-//                             chatlist[index]['message'],
-//                             style: Apptexts.bodystyle.copyWith(
-//                               color: Color(0xff9A9BB1),
-//                               fontSize: size.width * .035,
-//                               fontWeight: FontWeight.bold,
-//                             ),
-//                           ),
-//                         ],
-//                       ),
-//                     ),
-//                     Spacer(),
-//                     Padding(
-//                       padding: const EdgeInsets.only(right: 20, top: 10),
-//                       child: Column(
-//                         children: [
-//                           Text(
-//                             chatlist[index]['time'],
-//                             style: Apptexts.bodystyle.copyWith(
-//                               color: Color(0xff9A9BB1),
-//                               fontWeight: FontWeight.bold,
-//                             ),
-//                           ),
-//                           SizedBox(height: 4),
-//                           chatlist[index]['newmessage'] != "0"
-//                               ? Container(
-//                                 width: 20,
-//                                 height: 20,
-//                                 decoration: BoxDecoration(
-//                                   color: Color(0xff40C4FF),
-//                                   borderRadius: BorderRadius.circular(06),
-//                                 ),
-//                                 child: Center(
-//                                   child: Text(
-//                                     chatlist[index]['newmessage'],
-//                                     style: Apptexts.bodystyle.copyWith(
-//                                       color: Colors.white,
-//                                       fontWeight: FontWeight.bold,
-//                                     ),
-//                                   ),
-//                                 ),
-//                               )
-//                               : Container(),
-//                         ],
-//                       ),
-//                     ),
-//                   ],
-//                 ),
-//               );
-//             },
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
 import 'package:chat_app/constants/text.dart';
 import 'package:chat_app/homepage.dart/addgroup.dart';
 import 'package:chat_app/homepage.dart/showfriendlist.dart';
@@ -382,6 +23,7 @@ class _HomescreenState extends State<Homescreen> {
   final currentUserId = FirebaseAuth.instance.currentUser!.uid;
   String searchQuery = "";
   final TextEditingController _searchController = TextEditingController();
+  final Map<String, Map<String, String>> _userCache = {};
 
   @override
   void dispose() {
@@ -841,179 +483,6 @@ class _HomescreenState extends State<Homescreen> {
     );
   }
 
-  // Widget _buildIndividualChatListItem(
-  //   QueryDocumentSnapshot chat,
-  //   Map<String, dynamic> data,
-  //   Size size,
-  // ) {
-  //   final lastMessage = data['lastMessage'] ?? 'Start a conversation';
-  //   final lastMessageTime =
-  //       data['lastMessageTime'] != null
-  //           ? _formatTime(data['lastMessageTime'].toDate())
-  //           : '';
-
-  //   // Get unread count safely
-  //   final unreadCounts = Map<String, dynamic>.from(data['unreadCounts'] ?? {});
-  //   final unreadCount = unreadCounts[currentUserId] ?? 0;
-  //   final hasUnreadMessages = unreadCount > 0;
-
-  //   final otherParticipantId = _getOtherParticipantId(data, currentUserId);
-
-  //   if (otherParticipantId.isEmpty) {
-  //     return SizedBox();
-  //   }
-
-  //   return FutureBuilder<Map<String, String>>(
-  //     future: _getUserInfo(otherParticipantId),
-  //     builder: (context, snapshot) {
-  //       if (snapshot.connectionState == ConnectionState.waiting) {
-  //         return _buildChatSkeleton(size);
-  //       }
-
-  //       final userInfo =
-  //           snapshot.data ??
-  //           {
-  //             'name': 'Unknown',
-  //             'image': 'assets/images/profile.png',
-  //             'phone': '',
-  //           };
-
-  //       return InkWell(
-  //         onTap: () async {
-  //           // Mark messages as read before navigating
-  //           final chatId = chat.id;
-  //           final chatProvider = ChatProvider();
-  //           await chatProvider.markMessagesAsRead(chatId, currentUserId);
-
-  //           // Then navigate to chat
-  //           Navigator.push(
-  //             context,
-  //             MaterialPageRoute(
-  //               builder:
-  //                   (context) => Chatscreen(
-  //                     name: userInfo['name'] ?? "",
-  //                     image: userInfo['image'] ?? "assets/images/profile.png",
-  //                     receiverId: otherParticipantId,
-  //                     phone: userInfo['phone'] ?? '',
-  //                     senderId: currentUserId,
-  //                   ),
-  //             ),
-  //           );
-  //         },
-  //         child: Row(
-  //           children: [
-  //             Padding(
-  //               padding: const EdgeInsets.only(left: 20, top: 10, bottom: 10),
-  //               child: Stack(
-  //                 children: [
-  //                   CircleAvatar(
-  //                     radius: 25,
-  //                     backgroundImage:
-  //                         userInfo['image']!.startsWith('http')
-  //                             ? NetworkImage(userInfo['image']!)
-  //                             : AssetImage(userInfo['image']!) as ImageProvider,
-  //                   ),
-  //                   if (hasUnreadMessages)
-  //                     Positioned(
-  //                       right: 0,
-  //                       top: 0,
-  //                       child: Container(
-  //                         width: 12,
-  //                         height: 12,
-  //                         decoration: BoxDecoration(
-  //                           color: Color(0xff40C4FF),
-  //                           shape: BoxShape.circle,
-  //                           border: Border.all(
-  //                             color: Color(0xff292929),
-  //                             width: 2,
-  //                           ),
-  //                         ),
-  //                       ),
-  //                     ),
-  //                 ],
-  //               ),
-  //             ),
-  //             Padding(
-  //               padding: const EdgeInsets.only(left: 15, top: 10, bottom: 10),
-  //               child: Column(
-  //                 crossAxisAlignment: CrossAxisAlignment.start,
-  //                 children: [
-  //                   Text(
-  //                     userInfo['name']!,
-  //                     style: Apptexts.subtitlestyle.copyWith(
-  //                       color: Colors.white,
-  //                       fontWeight:
-  //                           hasUnreadMessages
-  //                               ? FontWeight.bold
-  //                               : FontWeight.normal,
-  //                       fontSize: size.width * .045,
-  //                     ),
-  //                   ),
-  //                   SizedBox(height: 3),
-  //                   SizedBox(
-  //                     width: size.width * 0.6,
-  //                     child: Text(
-  //                       lastMessage,
-  //                       style: Apptexts.bodystyle.copyWith(
-  //                         color:
-  //                             hasUnreadMessages
-  //                                 ? Colors.white
-  //                                 : Color(0xff9A9BB1),
-  //                         fontWeight:
-  //                             hasUnreadMessages
-  //                                 ? FontWeight.w500
-  //                                 : FontWeight.normal,
-  //                         fontSize: size.width * .035,
-  //                       ),
-  //                       overflow: TextOverflow.ellipsis,
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ),
-  //             Spacer(),
-  //             Padding(
-  //               padding: const EdgeInsets.only(right: 20, top: 10),
-  //               child: Column(
-  //                 children: [
-  //                   if (lastMessageTime.isNotEmpty)
-  //                     Text(
-  //                       lastMessageTime,
-  //                       style: Apptexts.bodystyle.copyWith(
-  //                         color: Color(0xff9A9BB1),
-  //                         fontWeight: FontWeight.w500,
-  //                       ),
-  //                     ),
-  //                   SizedBox(height: 4),
-  //                   if (hasUnreadMessages)
-  //                     Container(
-  //                       width: 20,
-  //                       height: 20,
-  //                       decoration: BoxDecoration(
-  //                         color: Color(0xff40C4FF),
-  //                         borderRadius: BorderRadius.circular(10),
-  //                       ),
-  //                       child: Center(
-  //                         child: Text(
-  //                           unreadCount.toString(),
-  //                           style: Apptexts.bodystyle.copyWith(
-  //                             color: Colors.white,
-  //                             fontWeight: FontWeight.bold,
-  //                             fontSize: 10,
-  //                           ),
-  //                         ),
-  //                       ),
-  //                     ),
-  //                 ],
-  //               ),
-  //             ),
-  //           ],
-  // //         ),
-  //       );
-  //     },
-  //   );
-  // }
-
   String _getOtherParticipantId(
     Map<String, dynamic> data,
     String currentUserId,
@@ -1025,24 +494,12 @@ class _HomescreenState extends State<Homescreen> {
     );
   }
 
-  // Future<String> _getUserName(String userId) async {
-  //   try {
-  //     final userDoc =
-  //         await FirebaseFirestore.instance
-  //             .collection('users')
-  //             .doc(userId)
-  //             .get();
-
-  //     if (userDoc.exists) {
-  //       return userDoc['name'] ?? 'Unknown';
-  //     }
-  //   } catch (e) {
-  //     print('Error fetching user name: $e');
-  //   }
-  //   return 'Unknown';
-  // }
-
   Future<Map<String, String>> _getUserInfo(String userId) async {
+    // Return from cache if available
+    if (_userCache.containsKey(userId)) {
+      return _userCache[userId]!;
+    }
+
     try {
       final userDoc =
           await FirebaseFirestore.instance
@@ -1050,22 +507,34 @@ class _HomescreenState extends State<Homescreen> {
               .doc(userId)
               .get();
 
+      Map<String, String> userInfo;
       if (userDoc.exists) {
-        return {
+        userInfo = {
           'name': userDoc['name'] ?? 'Unknown',
           'image': userDoc['profilePicture'] ?? 'assets/images/profile.png',
           'phone': userDoc['phoneNumber'] ?? '',
         };
+      } else {
+        userInfo = {
+          'name': 'Unknown',
+          'image': 'assets/images/profile.png',
+          'phone': '',
+        };
       }
+
+      // Store in cache
+      _userCache[userId] = userInfo;
+      return userInfo;
     } catch (e) {
       print('Error fetching user info: $e');
+      final errorInfo = {
+        'name': 'Unknown',
+        'image': 'assets/images/profile.png',
+        'phone': '',
+      };
+      _userCache[userId] = errorInfo;
+      return errorInfo;
     }
-
-    return {
-      'name': 'Unknown',
-      'image': 'assets/images/profile.png',
-      'phone': '',
-    };
   }
 
   Future<void> _showAddMenu(BuildContext context) async {

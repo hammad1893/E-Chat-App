@@ -68,14 +68,16 @@ class _GroupChatScreenState extends State<GroupChatScreen>
   Duration _audioDuration = Duration.zero;
   Duration _audioPosition = Duration.zero;
 
-  bool _isLoadingMessages = true;
   bool _isNearBottom = true;
   // NEW: User data cache to avoid showing "Unknown User"
   final Map<String, String> _userNameCache = {};
   final Map<String, StreamSubscription> _userSubscriptions = {};
   bool _messagesMarkedAsRead = false;
   final Map<String, String> _userPhotoCache = {};
-  // bool _isFetchingUserData = false;
+  List<GroupMessageModel>? _cachedMessages;
+  // ✅ ADD: Cache for messages (same as chat screen)
+  bool _hasCachedMessages = false;
+  Stream<List<GroupMessageModel>>? _cachedMessageStream;
 
   @override
   void initState() {
@@ -97,7 +99,6 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     _setupScrollListener();
     _setUserOnlineStatus(true);
 
-    // FIXED: Mark messages as read immediately when chat opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final groupProvider = Provider.of<GroupProvider>(
@@ -109,7 +110,39 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     });
   }
 
-  // FIXED: Safe method to mark messages as read
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ✅ Preload messages if not already cached
+    if (!_hasCachedMessages) {
+      _loadInitialMessages();
+    }
+  }
+
+  // ✅ ADD: Load initial messages with caching (same pattern as chat screen)
+  void _loadInitialMessages() {
+    final groupProvider = Provider.of<GroupProvider>(context, listen: false);
+
+    // Try to get cached messages first
+    final cachedMessages = groupProvider.getCachedGroupMessages(widget.groupId);
+    if (cachedMessages != null && cachedMessages.isNotEmpty) {
+      setState(() {
+        _cachedMessages = cachedMessages;
+        _hasCachedMessages = true;
+      });
+    }
+  }
+
+  // ✅ ADD: Get message stream with caching (same pattern as chat screen)
+  Stream<List<GroupMessageModel>> _getMessageStream(
+    GroupProvider groupProvider,
+  ) {
+    _cachedMessageStream ??=
+        groupProvider.getGroupMessages(widget.groupId).asBroadcastStream();
+    return _cachedMessageStream!;
+  }
+
+  // ✅ FIXED: Safe method to mark messages as read
   void _markMessagesAsRead() {
     if (_messagesMarkedAsRead || !mounted) return;
 
@@ -155,7 +188,6 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     _scrollController.addListener(() {
       final position = _scrollController.position;
       setState(() {
-        // ✅ For reverse list, check if near top (which is bottom visually)
         _isNearBottom = position.pixels <= 100;
       });
     });
@@ -163,6 +195,8 @@ class _GroupChatScreenState extends State<GroupChatScreen>
 
   @override
   void dispose() {
+    didChangeAppLifecycleState(AppLifecycleState.inactive);
+
     // Cancel all user subscriptions
     _userSubscriptions.forEach((key, subscription) {
       subscription.cancel();
@@ -178,6 +212,13 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     _scrollController.dispose();
 
     super.dispose();
+  }
+
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh cache when app resumes
+      _markMessagesAsRead();
+    }
   }
 
   String formatTime(dynamic timestamp) {
@@ -198,6 +239,7 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
     return "$twoDigitMinutes:$twoDigitSeconds";
   }
+
 
   // Voice Recording Methods
   Future<void> _startRecording() async {
@@ -1390,25 +1432,43 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     final groupProvider = Provider.of<GroupProvider>(context, listen: false);
 
     return StreamBuilder<List<GroupMessageModel>>(
-      stream: groupProvider.getGroupMessages(widget.groupId),
+      stream: _getMessageStream(groupProvider),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            _isLoadingMessages) {
+        // ✅ Load initial cached messages
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !_hasCachedMessages) {
+            _loadInitialMessages();
+          }
+        });
+
+        // ✅ OPTIMIZED: Show cached data immediately
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          if (_hasCachedMessages && _cachedMessages!.isNotEmpty) {
+            return _buildMessagesListFromCache();
+          }
           return _buildLoadingState();
         }
 
         if (snapshot.hasError) {
-          _isLoadingMessages = false;
-          return Center(
-            child: Text(
-              'Error loading messages',
-              style: TextStyle(color: Colors.white),
-            ),
-          );
+          if (_hasCachedMessages && _cachedMessages!.isNotEmpty) {
+            return _buildMessagesListFromCache();
+          }
+          return _buildLoadingState();
         }
 
         final messages = snapshot.data ?? [];
-        if (messages.isEmpty && !_isLoadingMessages) {
+
+        // ✅ UPDATE CACHE and loading state
+        if (messages.isNotEmpty) {
+          _cachedMessages = messages;
+          _hasCachedMessages = true;
+
+          // Cache messages in provider for future use
+          groupProvider.cacheGroupMessages(widget.groupId, messages);
+        }
+
+        if (messages.isEmpty && !_hasCachedMessages) {
           return Center(
             child: Text(
               'No messages yet',
@@ -1423,128 +1483,111 @@ class _GroupChatScreenState extends State<GroupChatScreen>
           });
         }
 
-        _isLoadingMessages = false;
+        // ✅ Use cached messages if no new messages
+        final messagesToDisplay =
+            messages.isNotEmpty ? messages : _cachedMessages;
 
-        // ✅ Don't sort - keep Firebase's descending order for reverse list
-        final sortedMessages = messages;
+        return _buildMessagesListView(messagesToDisplay!);
+      },
+    );
+  }
 
-        return ListView.builder(
-          controller: _scrollController,
-          reverse: true, // ✅ Changed to true (like one-to-one chat)
-          padding: const EdgeInsets.all(10),
-          itemCount: sortedMessages.length,
-          addAutomaticKeepAlives: true,
-          cacheExtent: 500,
-          itemBuilder: (context, index) {
-            final msg = sortedMessages[index];
-            final messageId = msg.messageId ?? index.toString();
+  // ✅ NEW: Build messages list from cache (instant loading)
+  Widget _buildMessagesListFromCache() {
+    if (_cachedMessages!.isEmpty) {
+      return Center(
+        child: Text('No messages yet', style: TextStyle(color: Colors.white54)),
+      );
+    }
 
-            final deletedFor = msg.deletedFor ?? [];
-            if (deletedFor.contains(currentUserId)) {
-              return const SizedBox.shrink();
-            }
+    return _buildMessagesListView(_cachedMessages!);
+  }
 
-            if (msg.messageType == 'system' || msg.senderId == 'system') {
-              return _buildSystemMessage(msg);
-            }
+  // ✅ NEW: Common method to build list view from messages
+  Widget _buildMessagesListView(List<GroupMessageModel> messages) {
+    // ✅ Don't sort - keep Firebase's descending order for reverse list
+    final sortedMessages = messages;
 
-            final isMe = msg.senderId == currentUserId;
-            final isSelected = _selectedMessages.contains(messageId);
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: true,
+      padding: const EdgeInsets.all(10),
+      itemCount: sortedMessages.length,
+      addAutomaticKeepAlives: true,
+      cacheExtent: 500,
+      itemBuilder: (context, index) {
+        final msg = sortedMessages[index];
+        final messageId = msg.messageId ?? index.toString();
 
-            Widget messageWidget;
-            switch (msg.messageType) {
-              case 'image':
-                messageWidget = _buildGroupImageMessage(msg, isMe);
-                break;
-              case 'video':
-                messageWidget = _buildGroupVideoMessage(msg, isMe);
-                break;
-              case 'audio':
-                messageWidget = _buildGroupAudioMessage(msg, isMe);
-                break;
-              case 'document':
-                messageWidget = _buildGroupDocumentMessage(msg, isMe);
-                break;
-              case 'contact':
-                messageWidget = _buildGroupContactMessage(msg, isMe);
-                break;
-              default:
-                messageWidget = _buildGroupTextMessage(msg, isMe);
-            }
+        final deletedFor = msg.deletedFor ?? [];
+        if (deletedFor.contains(currentUserId)) {
+          return const SizedBox.shrink();
+        }
 
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onLongPress: () => _toggleMessageSelection(messageId),
-              onTap:
-                  _isSelecting
-                      ? () => _toggleMessageSelection(messageId)
-                      : null,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                decoration: BoxDecoration(
-                  color:
-                      isSelected
-                          ? Colors.blue.withOpacity(0.1)
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_isSelecting)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8.0, top: 4.0),
-                        child: Checkbox(
-                          value: isSelected,
-                          onChanged: (_) => _toggleMessageSelection(messageId),
-                          activeColor: Colors.blue,
-                          checkColor: Colors.white,
-                        ),
-                      ),
-                    Expanded(child: messageWidget),
-                  ],
-                ),
-              ),
-            );
-          },
+        if (msg.messageType == 'system' || msg.senderId == 'system') {
+          return _buildSystemMessage(msg);
+        }
+
+        final isMe = msg.senderId == currentUserId;
+        final isSelected = _selectedMessages.contains(messageId);
+
+        Widget messageWidget;
+        switch (msg.messageType) {
+          case 'image':
+            messageWidget = _buildGroupImageMessage(msg, isMe);
+            break;
+          case 'video':
+            messageWidget = _buildGroupVideoMessage(msg, isMe);
+            break;
+          case 'audio':
+            messageWidget = _buildGroupAudioMessage(msg, isMe);
+            break;
+          case 'document':
+            messageWidget = _buildGroupDocumentMessage(msg, isMe);
+            break;
+          case 'contact':
+            messageWidget = _buildGroupContactMessage(msg, isMe);
+            break;
+          default:
+            messageWidget = _buildGroupTextMessage(msg, isMe);
+        }
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onLongPress: () => _toggleMessageSelection(messageId),
+          onTap: _isSelecting ? () => _toggleMessageSelection(messageId) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            decoration: BoxDecoration(
+              color:
+                  isSelected
+                      ? Colors.blue.withOpacity(0.1)
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_isSelecting)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8.0, top: 4.0),
+                    child: Checkbox(
+                      value: isSelected,
+                      onChanged: (_) => _toggleMessageSelection(messageId),
+                      activeColor: Colors.blue,
+                      checkColor: Colors.white,
+                    ),
+                  ),
+                Expanded(child: messageWidget),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  // Future<void> _prefetchGroupMembersData() async {
-  //   if (_isFetchingUserData) return;
-  //   _isFetchingUserData = true;
-
-  //   try {
-  //     final groupProvider = Provider.of<GroupProvider>(context, listen: false);
-  //     final groupMembers = await groupProvider.getGroupMembers(widget.groupId);
-
-  //     for (final member in groupMembers) {
-  //       final userId = member['uid'] as String;
-  //       final userName = member['name'] as String? ?? 'Unknown';
-  //       final userPhoto = member['photoUrl'] as String?;
-
-  //       _userNameCache[userId] = userName;
-  //       if (userPhoto != null) {
-  //         _userPhotoCache[userId] = userPhoto;
-  //       }
-  //     }
-
-  //     if (mounted) {
-  //       setState(() {
-  //         _isFetchingUserData = false;
-  //       });
-  //     }
-
-  //     print('✅ Pre-fetched ${_userNameCache.length} group members data');
-  //   } catch (e) {
-  //     print('❌ Error pre-fetching group members: $e');
-  //     _isFetchingUserData = false;
-  //   }
-  // }
-
-  // ✅ Enhanced method to get user name with multiple fallbacks
+  // ✅ Enhanced method to get user name with multiple fallbacks (same as chat screen)
   String _getUserName(String userId, String? messageSenderName) {
     // 1. Check cache first
     if (_userNameCache.containsKey(userId)) {
@@ -1567,7 +1610,7 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     return 'Loading...';
   }
 
-  // ✅ Fetch user data asynchronously and update UI
+  // ✅ Fetch user data asynchronously and update UI (same as chat screen)
   Future<void> _fetchUserDataAsync(String userId) async {
     if (_userNameCache.containsKey(userId)) return;
 

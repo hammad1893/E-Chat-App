@@ -54,35 +54,6 @@ class _ProfilepageState extends State<Profilepage> {
   Widget build(BuildContext context) {
     final authState = Provider.of<Authstate>(context);
     final user = authState.usermodel;
-
-    // FIX: Show loading if user data is null
-    if (user == null && authState.isloading) {
-      return Scaffold(
-        backgroundColor: Color(0xff292929),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // FIX: Show error message if user data couldn't be loaded
-    if (user == null) {
-      return Scaffold(
-        backgroundColor: Color(0xff292929),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                "Unable to load user data",
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-              SizedBox(height: 20),
-              ElevatedButton(onPressed: _loadUserData, child: Text("Retry")),
-            ],
-          ),
-        ),
-      );
-    }
-
     Size size = MediaQuery.of(context).size;
     return Scaffold(
       backgroundColor: Color(0xff292929),
@@ -134,13 +105,13 @@ class _ProfilepageState extends State<Profilepage> {
                 backgroundImage:
                     (_image != null)
                         ? FileImage(_image!) as ImageProvider
-                        : (user.profilePicture != null &&
+                        : (user!.profilePicture != null &&
                             user.profilePicture!.isNotEmpty)
                         ? NetworkImage(user.profilePicture!)
                         : null,
                 child:
                     (_image == null &&
-                            (user.profilePicture == null ||
+                            (user!.profilePicture == null ||
                                 user.profilePicture!.isEmpty))
                         ? const Icon(
                           Icons.person,
@@ -169,7 +140,7 @@ class _ProfilepageState extends State<Profilepage> {
           ),
           SizedBox(height: size.height * .02),
           Text(
-            user.name ?? "No Name",
+            user!.name ?? "No Name",
             style: Apptexts.titlestyle.copyWith(color: Colors.white),
           ),
           SizedBox(height: size.height * .04),

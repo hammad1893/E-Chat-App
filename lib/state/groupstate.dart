@@ -8,6 +8,44 @@ import 'package:flutter/material.dart';
 class GroupProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  // ✅ ADD: Cache for group messages
+  final Map<String, List<GroupMessageModel>> _groupMessagesCache = {};
+
+  // ✅ ADD: Cache for groups list
+  List<ChatGroup>? _cachedGroups;
+  bool _isGroupsCacheValid = false;
+
+  // ✅ ADD: Cache for individual groups
+  final Map<String, ChatGroup> _groupCache = {};
+
+  // ✅ ADD: Cache for group members
+  final Map<String, List<Map<String, dynamic>>> _groupMembersCache = {};
+
+  // ✅ ADD: Get cached group messages
+  List<GroupMessageModel>? getCachedGroupMessages(String groupId) {
+    return _groupMessagesCache[groupId];
+  }
+
+  // ✅ ADD: Cache group messages
+  void cacheGroupMessages(String groupId, List<GroupMessageModel> messages) {
+    _groupMessagesCache[groupId] = messages;
+  }
+
+  // ✅ ADD: Clear group cache when needed
+  void clearGroupCache(String groupId) {
+    _groupMessagesCache.remove(groupId);
+    _groupCache.remove(groupId);
+    _groupMembersCache.remove(groupId);
+  }
+
+  // ✅ ADD: Clear all cache
+  void clearAllCache() {
+    _groupMessagesCache.clear();
+    _cachedGroups = null;
+    _isGroupsCacheValid = false;
+    _groupCache.clear();
+    _groupMembersCache.clear();
+  }
 
   Future<String> createGroup({
     required String name,
@@ -49,6 +87,11 @@ class GroupProvider with ChangeNotifier {
       );
       await groupDoc.set(chatGroup.toMap());
       print('Group document created successfully');
+
+      // ✅ Clear groups cache since we added a new group
+      _cachedGroups = null;
+      _isGroupsCacheValid = false;
+
       final chatData = {
         'lastMessage': 'Group created',
         'lastMessageTime': FieldValue.serverTimestamp(),
@@ -92,12 +135,18 @@ class GroupProvider with ChangeNotifier {
     return counts;
   }
 
-  // Get user's groups
+  // Get user's groups - UPDATED WITH CACHING
   Stream<List<ChatGroup>> getUserGroups() {
     final userId = _auth.currentUser?.uid;
     if (userId == null) {
       print('No authenticated user found');
       return Stream.value([]);
+    }
+
+    // ✅ Return cached data immediately if available
+    if (_isGroupsCacheValid && _cachedGroups != null) {
+      print('✅ Returning cached groups: ${_cachedGroups!.length} groups');
+      return Stream.value(_cachedGroups!);
     }
 
     return _firestore
@@ -142,18 +191,29 @@ class GroupProvider with ChangeNotifier {
 
               final group = ChatGroup.fromMap(completeGroupData, doc.id);
               groups.add(group);
+
+              // ✅ Cache individual group
+              _groupCache[doc.id] = group;
             } catch (e) {
               print('Error processing group ${doc.id}: $e');
               // Continue processing other groups instead of failing completely
             }
           }
 
-          print('Successfully processed ${groups.length} groups');
+          // ✅ Update cache
+          _cachedGroups = groups;
+          _isGroupsCacheValid = true;
+
+          print('✅ Successfully processed and cached ${groups.length} groups');
           return groups;
         })
         .handleError((error) {
           print('Error in getUserGroups stream: $error');
-          return <ChatGroup>[]; // Return empty list on error
+          // ✅ Return cached data even on error
+          if (_cachedGroups != null) {
+            return _cachedGroups!;
+          }
+          return <ChatGroup>[];
         });
   }
 
@@ -161,6 +221,12 @@ class GroupProvider with ChangeNotifier {
   Stream<ChatGroup?> getGroup(String groupId) {
     if (groupId.isEmpty) {
       return Stream.value(null);
+    }
+
+    // ✅ Return cached group immediately if available
+    if (_groupCache.containsKey(groupId)) {
+      print('✅ Returning cached group: $groupId');
+      return Stream.value(_groupCache[groupId]);
     }
 
     return _firestore
@@ -180,7 +246,12 @@ class GroupProvider with ChangeNotifier {
               return null;
             }
 
-            return ChatGroup.fromMap(data, snapshot.id);
+            final group = ChatGroup.fromMap(data, snapshot.id);
+
+            // ✅ Cache the group
+            _groupCache[groupId] = group;
+
+            return group;
           } catch (e) {
             print('Error parsing group $groupId: $e');
             return null;
@@ -188,11 +259,12 @@ class GroupProvider with ChangeNotifier {
         })
         .handleError((error) {
           print('Error in getGroup stream: $error');
-          return null;
+          // ✅ Return cached group even on error
+          return _groupCache[groupId];
         });
   }
 
-  // Add members to group
+  // Add members to group - UPDATED WITH CACHE INVALIDATION
   Future<void> addMembersToGroup(
     String groupId,
     List<String> newMemberIds,
@@ -258,6 +330,11 @@ class GroupProvider with ChangeNotifier {
         }
       }
 
+      // ✅ Invalidate caches
+      _groupCache.remove(groupId);
+      _groupMembersCache.remove(groupId);
+      _isGroupsCacheValid = false;
+
       notifyListeners();
     } catch (e) {
       print('Error adding members to group: $e');
@@ -313,6 +390,9 @@ class GroupProvider with ChangeNotifier {
           .doc(groupId)
           .collection('messages')
           .add(messageData);
+
+      // ✅ Invalidate messages cache for this group
+      _groupMessagesCache.remove(groupId);
 
       // Prepare last message text
       String lastMessageText = text.trim();
@@ -487,6 +567,15 @@ class GroupProvider with ChangeNotifier {
       return Stream.value([]);
     }
 
+    // ✅ Return cached messages immediately if available
+    if (_groupMessagesCache.containsKey(groupId)) {
+      final cachedMessages = _groupMessagesCache[groupId]!;
+      print(
+        '✅ Returning cached messages for $groupId: ${cachedMessages.length} messages',
+      );
+      return Stream.value(cachedMessages);
+    }
+
     return _firestore
         .collection('groups')
         .doc(groupId)
@@ -496,27 +585,35 @@ class GroupProvider with ChangeNotifier {
         .snapshots()
         .map((snapshot) {
           try {
-            return snapshot.docs
-                .map((doc) {
-                  try {
-                    final data = doc.data();
-                    return GroupMessageModel.fromMap(data, doc.id);
-                  } catch (e) {
-                    print('Error parsing message ${doc.id}: $e');
-                    return null;
-                  }
-                })
-                .where((message) => message != null)
-                .cast<GroupMessageModel>()
-                .toList();
+            final messages =
+                snapshot.docs
+                    .map((doc) {
+                      try {
+                        final data = doc.data();
+                        return GroupMessageModel.fromMap(data, doc.id);
+                      } catch (e) {
+                        print('Error parsing message ${doc.id}: $e');
+                        return null;
+                      }
+                    })
+                    .where((message) => message != null)
+                    .cast<GroupMessageModel>()
+                    .toList();
+
+            // ✅ Cache the messages
+            _groupMessagesCache[groupId] = messages;
+
+            return messages;
           } catch (e) {
             print('Error processing messages: $e');
-            return <GroupMessageModel>[];
+            // ✅ Return cached messages even on error
+            return _groupMessagesCache[groupId] ?? <GroupMessageModel>[];
           }
         })
         .handleError((error) {
           print('Error in getGroupMessages stream: $error');
-          return <GroupMessageModel>[];
+          // ✅ Return cached messages even on error
+          return _groupMessagesCache[groupId] ?? <GroupMessageModel>[];
         });
   }
 
@@ -574,6 +671,9 @@ class GroupProvider with ChangeNotifier {
         if (markedCount > 0) {
           await batch.commit();
           print('📧 Marked $markedCount group messages as read');
+
+          // ✅ Invalidate messages cache
+          _groupMessagesCache.remove(groupId);
         }
       }
 
@@ -634,6 +734,9 @@ class GroupProvider with ChangeNotifier {
           .doc(messageId)
           .delete();
 
+      // ✅ Invalidate messages cache
+      _groupMessagesCache.remove(groupId);
+
       notifyListeners();
     } catch (e) {
       print('Error deleting group message: $e');
@@ -678,6 +781,10 @@ class GroupProvider with ChangeNotifier {
         }, SetOptions(merge: true));
       }
 
+      // ✅ Invalidate caches
+      _groupCache.remove(groupId);
+      _isGroupsCacheValid = false;
+
       notifyListeners();
     } catch (e) {
       print('Error updating group info: $e');
@@ -717,6 +824,12 @@ class GroupProvider with ChangeNotifier {
         return [];
       }
 
+      // ✅ Return cached members immediately if available
+      if (_groupMembersCache.containsKey(groupId)) {
+        print('✅ Returning cached members for $groupId');
+        return _groupMembersCache[groupId]!;
+      }
+
       final groupDoc = await _firestore.collection('groups').doc(groupId).get();
       if (!groupDoc.exists) {
         return [];
@@ -751,10 +864,14 @@ class GroupProvider with ChangeNotifier {
         }
       }
 
+      // ✅ Cache the members
+      _groupMembersCache[groupId] = members;
+
       return members;
     } catch (e) {
       print('Error getting group members: $e');
-      return [];
+      // ✅ Return cached members even on error
+      return _groupMembersCache[groupId] ?? [];
     }
   }
 
@@ -968,6 +1085,11 @@ class GroupProvider with ChangeNotifier {
         }
         await batch.commit();
       }
+      _groupCache.remove(groupId);
+      _groupMessagesCache.remove(groupId);
+      _groupMembersCache.remove(groupId);
+      _cachedGroups = null;
+      _isGroupsCacheValid = false;
 
       notifyListeners();
     } catch (e) {

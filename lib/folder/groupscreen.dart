@@ -24,6 +24,10 @@ class _GroupscreenState extends State<Groupscreen> {
   final GlobalKey _iconKey = GlobalKey();
   String _searchQuery = '';
 
+  // ✅ ADD: Cache for groups
+  List<ChatGroup>? _cachedGroups;
+  bool _isInitialLoad = true;
+
   @override
   void initState() {
     super.initState();
@@ -181,106 +185,182 @@ class _GroupscreenState extends State<Groupscreen> {
 
           // Groups List
           Expanded(
-            child: Consumer<GroupProvider>(
-              builder: (context, groupProvider, child) {
-                return StreamBuilder<List<ChatGroup>>(
-                  stream: groupProvider.getUserGroups(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _buildLoadingState(size);
-                    }
+            child:
+                _cachedGroups != null && !_isInitialLoad
+                    ? _buildGroupsListFromCache(size, currentUserId)
+                    : Consumer<GroupProvider>(
+                      builder: (context, groupProvider, child) {
+                        return StreamBuilder<List<ChatGroup>>(
+                          stream: groupProvider.getUserGroups(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return _buildLoadingState(size);
+                            }
 
-                    if (snapshot.hasError) {
-                      print('Group stream error: ${snapshot.error}');
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.error,
-                              color: Colors.red,
-                              size: 50,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Error loading groups',
-                              style: Apptexts.bodystyle.copyWith(
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Please check your connection',
-                              style: Apptexts.bodystyle.copyWith(
-                                color: Colors.white54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
+                            if (snapshot.hasError) {
+                              print('Group stream error: ${snapshot.error}');
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.error,
+                                      color: Colors.red,
+                                      size: 50,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Error loading groups',
+                                      style: Apptexts.bodystyle.copyWith(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Please check your connection',
+                                      style: Apptexts.bodystyle.copyWith(
+                                        color: Colors.white54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
 
-                    if (!snapshot.hasData) {
-                      return Center(
-                        child: Text(
-                          'No data received',
-                          style: Apptexts.bodystyle.copyWith(
-                            color: Colors.white,
-                          ),
-                        ),
-                      );
-                    }
-
-                    final groups = snapshot.data ?? [];
-                    final filteredGroups =
-                        _searchQuery.isEmpty
-                            ? groups
-                            : groups
-                                .where(
-                                  (group) => group.name.toLowerCase().contains(
-                                    _searchQuery,
+                            if (!snapshot.hasData) {
+                              return Center(
+                                child: Text(
+                                  'No groups available',
+                                  style: Apptexts.bodystyle.copyWith(
+                                    color: Colors.white,
                                   ),
-                                )
-                                .toList();
+                                ),
+                              );
+                            }
 
-                    if (filteredGroups.isEmpty) {
-                      return Center(
-                        child: Text(
-                          _searchQuery.isEmpty
-                              ? 'No groups yet'
-                              : 'No groups found',
-                          style: Apptexts.bodystyle.copyWith(
-                            color: Colors.white54,
-                          ),
-                        ),
-                      );
-                    }
+                            final groups = snapshot.data ?? [];
 
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.only(top: 10),
-                      itemCount: filteredGroups.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final group = filteredGroups[index];
-                        return _buildGroupListItem(
-                          context,
-                          group,
-                          size,
-                          currentUserId,
+                            // ✅ Cache the groups on first load
+                            if (_isInitialLoad) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted) {
+                                  setState(() {
+                                    _cachedGroups = groups;
+                                    _isInitialLoad = false;
+                                  });
+                                }
+                              });
+                            }
+
+                            return _buildGroupsList(
+                              groups,
+                              size,
+                              currentUserId,
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                );
-              },
-            ),
+                    ),
           ),
         ],
       ),
     );
   }
 
-  // ... (Keep _showAddMenu method as is)
+  // ✅ NEW: Build groups list from cache (instant loading)
+  Widget _buildGroupsListFromCache(Size size, String? currentUserId) {
+    final filteredGroups =
+        _searchQuery.isEmpty
+            ? _cachedGroups!
+            : _cachedGroups!
+                .where(
+                  (group) => group.name.toLowerCase().contains(_searchQuery),
+                )
+                .toList();
+
+    if (filteredGroups.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _searchQuery.isEmpty ? Icons.groups : Icons.search_off,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _searchQuery.isEmpty ? 'No groups yet' : 'No groups found',
+              style: Apptexts.bodystyle.copyWith(color: Colors.white54),
+            ),
+            if (_searchQuery.isEmpty) const SizedBox(height: 8),
+            if (_searchQuery.isEmpty)
+              Text(
+                'Create your first group!',
+                style: Apptexts.bodystyle.copyWith(color: Colors.grey),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      padding: const EdgeInsets.only(top: 10),
+      itemCount: filteredGroups.length,
+      itemBuilder: (BuildContext context, int index) {
+        final group = filteredGroups[index];
+        return _buildGroupListItem(context, group, size, currentUserId);
+      },
+    );
+  }
+
+  // ✅ NEW: Build groups list from stream data
+  Widget _buildGroupsList(
+    List<ChatGroup> groups,
+    Size size,
+    String? currentUserId,
+  ) {
+    final filteredGroups =
+        _searchQuery.isEmpty
+            ? groups
+            : groups
+                .where(
+                  (group) => group.name.toLowerCase().contains(_searchQuery),
+                )
+                .toList();
+
+    if (filteredGroups.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _searchQuery.isEmpty ? Icons.groups : Icons.search_off,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _searchQuery.isEmpty ? 'No groups yet' : 'No groups found',
+              style: Apptexts.bodystyle.copyWith(color: Colors.white54),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      padding: const EdgeInsets.only(top: 10),
+      itemCount: filteredGroups.length,
+      itemBuilder: (BuildContext context, int index) {
+        final group = filteredGroups[index];
+        return _buildGroupListItem(context, group, size, currentUserId);
+      },
+    );
+  }
 
   Widget _buildGroupListItem(
     BuildContext context,
@@ -430,7 +510,6 @@ class _GroupscreenState extends State<Groupscreen> {
     );
   }
 
-  // FIXED: Simplified navigation - let GroupChatScreen handle marking as read
   void _navigateToGroupChat(BuildContext context, ChatGroup group) {
     Navigator.push(
       context,
@@ -443,7 +522,16 @@ class _GroupscreenState extends State<Groupscreen> {
               memberCount: group.memberIds.length,
             ),
       ),
-    );
+    ).then((_) {
+      // ✅ Optional: Refresh cache when returning if you want latest data
+      // Remove this if you want to keep the cached data
+      if (mounted) {
+        setState(() {
+          _isInitialLoad = true; // Force refresh on next build
+          _cachedGroups = null;
+        });
+      }
+    });
   }
 
   // Helper method to safely get last message
@@ -530,76 +618,6 @@ class _GroupscreenState extends State<Groupscreen> {
       ],
     );
   }
-
-  // Skeleton loading widget
-  // Widget _buildGroupListItemSkeleton(Size size) {
-  //   return Container(
-  //     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-  //     margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-  //     decoration: BoxDecoration(
-  //       color: const Color(0xff3a3a3a),
-  //       borderRadius: BorderRadius.circular(12),
-  //     ),
-  //     child: Row(
-  //       children: [
-  //         Container(
-  //           width: 50,
-  //           height: 50,
-  //           decoration: BoxDecoration(
-  //             color: Colors.grey[700],
-  //             borderRadius: BorderRadius.circular(25),
-  //           ),
-  //         ),
-  //         const SizedBox(width: 15),
-  //         Expanded(
-  //           child: Column(
-  //             crossAxisAlignment: CrossAxisAlignment.start,
-  //             children: [
-  //               Container(
-  //                 width: size.width * 0.4,
-  //                 height: 16,
-  //                 decoration: BoxDecoration(
-  //                   color: Colors.grey[700],
-  //                   borderRadius: BorderRadius.circular(4),
-  //                 ),
-  //               ),
-  //               const SizedBox(height: 8),
-  //               Container(
-  //                 width: size.width * 0.3,
-  //                 height: 12,
-  //                 decoration: BoxDecoration(
-  //                   color: Colors.grey[700],
-  //                   borderRadius: BorderRadius.circular(4),
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //         Column(
-  //           children: [
-  //             Container(
-  //               width: 30,
-  //               height: 12,
-  //               decoration: BoxDecoration(
-  //                 color: Colors.grey[700],
-  //                 borderRadius: BorderRadius.circular(4),
-  //               ),
-  //             ),
-  //             const SizedBox(height: 8),
-  //             Container(
-  //               width: 20,
-  //               height: 20,
-  //               decoration: BoxDecoration(
-  //                 color: Colors.grey[700],
-  //                 borderRadius: BorderRadius.circular(10),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Widget _buildLoadingState(Size size) {
     return ListView.builder(
