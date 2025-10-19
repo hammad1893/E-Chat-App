@@ -24,7 +24,7 @@ class _GroupscreenState extends State<Groupscreen> {
   final GlobalKey _iconKey = GlobalKey();
   String _searchQuery = '';
 
-  // ✅ ADD: Cache for groups
+  // Cache for groups
   List<ChatGroup>? _cachedGroups;
   bool _isInitialLoad = true;
 
@@ -241,7 +241,7 @@ class _GroupscreenState extends State<Groupscreen> {
 
                             final groups = snapshot.data ?? [];
 
-                            // ✅ Cache the groups on first load
+                            // Cache the groups on first load
                             if (_isInitialLoad) {
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 if (mounted) {
@@ -268,7 +268,7 @@ class _GroupscreenState extends State<Groupscreen> {
     );
   }
 
-  // ✅ NEW: Build groups list from cache (instant loading)
+  //Build groups list from cache (instant loading)
   Widget _buildGroupsListFromCache(Size size, String? currentUserId) {
     final filteredGroups =
         _searchQuery.isEmpty

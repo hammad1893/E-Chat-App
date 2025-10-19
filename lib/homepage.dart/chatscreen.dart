@@ -354,69 +354,6 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
     }
   }
 
-  // Future<void> _checkBlockingStatus() async {
-  //   try {
-  //     if (currentUserId.isEmpty) return;
-
-  //     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-
-  //     final hasBlocked = await chatProvider.isUserBlocked(widget.receiverId);
-  //     final isBlockedByReceiver = await chatProvider.isBlockedByUser(
-  //       widget.receiverId,
-  //     );
-
-  //     if (mounted) {
-  //       setState(() {
-  //         _hasBlockedReceiver = hasBlocked;
-  //         _isUserBlocked = isBlockedByReceiver;
-  //       });
-  //       print(
-  //         '✅ Block status - You blocked: $_hasBlockedReceiver, Blocked by user: $_isUserBlocked',
-  //       );
-  //     }
-  //   } catch (e) {
-  //     print('❌ Error checking block status: $e');
-  //     if (mounted) {
-  //       setState(() {});
-  //     }
-  //   }
-  // }
-
-  // Blocked input UI
-
-  // Widget _buildBlockedInputUI(Size size) {
-  //   return Container(
-  //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-  //     color: const Color(0xff292929),
-  //     child: GestureDetector(
-  //       onTap: _showUnblockDialog,
-  //       child: Container(
-  //         padding: const EdgeInsets.symmetric(vertical: 14),
-  //         decoration: BoxDecoration(
-  //           color: const Color(0xff3e3e3e),
-  //           borderRadius: BorderRadius.circular(10),
-  //           border: Border.all(color: Colors.red.withOpacity(0.3)),
-  //         ),
-  //         child: Row(
-  //           mainAxisAlignment: MainAxisAlignment.center,
-  //           children: [
-  //             Icon(Icons.block, color: Colors.red.withOpacity(0.8), size: 20),
-  //             const SizedBox(width: 12),
-  //             Text(
-  //               'You blocked this contact. Tap to unblock',
-  //               style: TextStyle(
-  //                 color: Colors.red.withOpacity(0.9),
-  //                 fontSize: 14,
-  //                 fontWeight: FontWeight.w500,
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
-
   void _showUnblockDialog() {
     showDialog(
       context: context,
@@ -533,14 +470,14 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
 
   Future<void> _pickImageFromGallery() async {
     try {
-      // ✅ Ask for permission
+      // Ask for permission
       final permission = await PhotoManager.requestPermissionExtend();
       if (!permission.isAuth) {
         SnackbarMessage.failedsnack('Gallery access denied', context);
         return;
       }
 
-      // ✅ Open gallery picker (supports multiple image/video)
+      // Open gallery picker (supports multiple image/video)
       final List<AssetEntity>? assets = await AssetPicker.pickAssets(
         context,
         pickerConfig: const AssetPickerConfig(

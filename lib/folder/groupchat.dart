@@ -62,7 +62,6 @@ class _GroupChatScreenState extends State<GroupChatScreen>
   Animation<double>? _recordingAnimation;
   bool _isSelecting = false;
   final Set<String> _selectedMessages = {};
-  // Playback state
   bool _isPlaying = false;
   String _currentPlayingUrl = '';
   Duration _audioDuration = Duration.zero;

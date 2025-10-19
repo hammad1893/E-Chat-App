@@ -70,7 +70,7 @@ class _ContactInfoScreenState extends State<ContactInfoScreen> {
     }
   }
 
-  // ✅ FIXED: Block/Unblock using receiverId
+  // Block/Unblock using receiverId
   Future<void> _toggleBlockUser() async {
     try {
       final chatProvider = Provider.of<ChatProvider>(context, listen: false);
@@ -99,7 +99,7 @@ class _ContactInfoScreenState extends State<ContactInfoScreen> {
         );
       }
       
-      // ✅ Notify chat screen to refresh
+      // Notify chat screen to refresh
       _notifyChatScreen();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

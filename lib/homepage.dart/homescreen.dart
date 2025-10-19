@@ -267,19 +267,6 @@ class _HomescreenState extends State<Homescreen> {
                     ),
                   );
                 }
-                // individualChats.where((chat) async {
-                //         final data = chat.data() as Map<String, dynamic>;
-                //         final otherParticipantId = _getOtherParticipantId(
-                //           data,
-                //           currentUserId,
-                //         );
-                //         if (otherParticipantId.isEmpty) return false;
-
-                //         final userInfo = await _getUserInfo(otherParticipantId);
-                //         return userInfo['name']!.toLowerCase().contains(
-                //           searchQuery.toLowerCase(),
-                //         );
-                //       }).toList();
 
                 return ListView.builder(
                   shrinkWrap: true,
@@ -329,7 +316,7 @@ class _HomescreenState extends State<Homescreen> {
               'phone': '',
             };
 
-        // ✅ Use StreamBuilder for real-time unread count
+        // Use StreamBuilder for real-time unread count
         return StreamBuilder<int>(
           stream: Provider.of<UnreadCountProvider>(
             context,

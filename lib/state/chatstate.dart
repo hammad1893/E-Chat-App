@@ -82,9 +82,7 @@ class ChatProvider with ChangeNotifier {
 
     return stream;
   }
-
-  // ✅ ADD: Get cached messages instantly
-   // ✅ ADD: Get cached messages method
+  
   List<MessageModel>? getCachedMessages(String chatId) {
     return _messageCache[chatId];
   }
@@ -402,29 +400,6 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  // Future<void> unblockUser(String unblockedUserId) async {
-  //   final currentUser = _auth.currentUser;
-  //   if (currentUser == null) return;
-
-  //   try {
-  //     await _firestore.collection('users').doc(currentUser.uid).set({
-  //       'blockedUsers': FieldValue.arrayRemove([unblockedUserId]),
-  //       'updatedAt': FieldValue.serverTimestamp(),
-  //     }, SetOptions(merge: true));
-
-  //     final chatId = getChatId(currentUser.uid, unblockedUserId);
-  //     await _firestore.collection('chats').doc(chatId).set({
-  //       'lastMessage': 'Chat restored',
-  //       'lastMessageTime': FieldValue.serverTimestamp(),
-  //     }, SetOptions(merge: true));
-
-  //     notifyListeners();
-  //   } catch (e) {
-  //     print('Error unblocking user: $e');
-  //     rethrow;
-  //   }
-  // }
-
   Future<bool> isUserBlocked(String otherUserId) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return false;
@@ -456,31 +431,6 @@ class ChatProvider with ChangeNotifier {
       return List<String>.from(snapshot.data()?['blockedUsers'] ?? []);
     });
   }
-  // Add to ChatProvider class
-
-  // Enhanced block user functionality
-  // Future<void> blockUser(String blockedUserId) async {
-  //   final currentUser = _auth.currentUser;
-  //   if (currentUser == null) return;
-
-  //   try {
-  //     await _firestore.collection('users').doc(currentUser.uid).set({
-  //       'blockedUsers': FieldValue.arrayUnion([blockedUserId]),
-  //       'updatedAt': FieldValue.serverTimestamp(),
-  //     }, SetOptions(merge: true));
-
-  //     final chatId = getChatId(currentUser.uid, blockedUserId);
-  //     await _firestore.collection('chats').doc(chatId).set({
-  //       'lastMessage': '🚫 Contact blocked',
-  //       'lastMessageTime': FieldValue.serverTimestamp(),
-  //     }, SetOptions(merge: true));
-
-  //     notifyListeners();
-  //   } catch (e) {
-  //     print('Error blocking user: $e');
-  //     rethrow;
-  //   }
-  // }
 
   // Message selection and deletion
   Future<void> deleteMultipleMessages(

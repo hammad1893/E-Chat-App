@@ -230,7 +230,6 @@ class _AddMembersScreenState extends State<AddMembersScreen> {
       ),
       body: Column(
         children: [
-          // Search bar (optional - you can add later)
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
@@ -248,7 +247,6 @@ class _AddMembersScreenState extends State<AddMembersScreen> {
               ),
               style: const TextStyle(color: Colors.white),
               onChanged: (value) {
-                // Implement search functionality if needed
               },
             ),
           ),

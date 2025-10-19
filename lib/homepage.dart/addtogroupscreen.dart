@@ -36,7 +36,7 @@ class _GroupSelectionScreenState extends State<GroupSelectionScreen> {
       final groupProvider = Provider.of<GroupProvider>(context, listen: false);
       final allGroups = await groupProvider.getUserGroups().first;
 
-      // FIXED: Properly filter groups where:
+      // Properly filter groups where:
       // 1. Current user is admin
       // 2. Contact is NOT already a member
       final currentUserId = _getCurrentUserId();
@@ -100,7 +100,6 @@ class _GroupSelectionScreenState extends State<GroupSelectionScreen> {
         await groupProvider.addMembersToGroup(groupId, [widget.contactId]);
       }
 
-      // Close loading dialog
       Navigator.pop(context);
 
       // Show success message
