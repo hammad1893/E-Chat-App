@@ -214,7 +214,7 @@ class _AddcontactState extends State<Addcontact> {
               });
               print("Contact Added");
               print("fullName: $fullName, Phone: $phoneNumber");
-              AppUtils.showToast("Contact Added Successfully");
+              AppUtils.success(context, "✅ Contact Added Successfully");
               Navigator.pop(context);
             },
           ),

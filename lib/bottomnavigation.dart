@@ -29,14 +29,12 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
       "badgeType": "group",
     },
     {"icon": Icons.person_outline, "label": "Profile", "showBadge": false},
-    // {"icon": Icons.menu, "label": "More", "showBadge": false},
   ];
 
   final List<Widget> screens = const [
     Homescreen(),
     Groupscreen(),
     Profilepage(),
-    // MenuPage(),
   ];
 
   @override

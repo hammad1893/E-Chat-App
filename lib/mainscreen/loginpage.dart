@@ -139,7 +139,7 @@ class _LoginpageState extends State<Loginpage> {
                 if (!mounted) return;
 
                 if (error == null) {
-                  AppUtils.showToast("Login successful");
+                  AppUtils.success(context, "Login Successful");
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setBool('is_logged_in', true);
 
@@ -187,7 +187,7 @@ class _LoginpageState extends State<Loginpage> {
               children: [
                 GestureDetector(
                   onTap: () {
-                    // user.signInWithGoogle(context);
+                    user.signInWithGoogle(context);
                   },
                   child: Container(
                     height: size.height * .07,

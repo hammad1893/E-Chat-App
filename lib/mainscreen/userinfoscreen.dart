@@ -103,7 +103,6 @@ class _UserinfoscreenState extends State<Userinfoscreen> {
       );
       if (uploadedUrl != null) {
         imageUrl = uploadedUrl;
-        SnackbarMessage.successsnack("Image uploaded successfully", context);
       } else {
         SnackbarMessage.failedsnack("Failed to upload image", context);
         return;
@@ -116,7 +115,7 @@ class _UserinfoscreenState extends State<Userinfoscreen> {
         imageUrl: imageUrl,
       );
 
-      AppUtils.showToast("✅ Profile Created successfully");
+      AppUtils.success(context, "✅ Profile Created successfully");
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const CustomBottomNavBar()),

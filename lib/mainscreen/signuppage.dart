@@ -154,7 +154,7 @@ class _SignuppageState extends State<Signuppage> {
                   email: emailcontroller.text,
                   password: passwordController.text,
                 );
-                AppUtils.showToast("Account created successfully");
+                AppUtils.success(context, "Account created successfully");
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('is_logged_in', true);
 
@@ -200,7 +200,7 @@ class _SignuppageState extends State<Signuppage> {
               children: [
                 GestureDetector(
                   onTap: () {
-                    // user.signInWithGoogle(context);
+                    user.signInWithGoogle(context);
                   },
                   child: Container(
                     height: size.height * .07,

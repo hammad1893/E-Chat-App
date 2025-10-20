@@ -216,7 +216,6 @@ class _ProfilepageState extends State<Profilepage> {
           GestureDetector(
             onTap: () {
               Clipboard.setData(ClipboardData(text: value));
-              AppUtils.showToast("Copied to clipboard");
             },
             child: Icon(Icons.copy, color: Colors.white54, size: 18),
           ),

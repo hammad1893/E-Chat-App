@@ -334,7 +334,7 @@ class _HomescreenState extends State<Homescreen> {
                 await chatProvider.markMessagesAsRead(chatId, currentUserId);
 
                 // ✅ Navigate to chat screen
-                await Navigator.push(
+                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder:
