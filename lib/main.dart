@@ -1,15 +1,18 @@
 import 'package:chat_app/firebase_options.dart';
 import 'package:chat_app/mainscreen/splashscreen.dart';
+import 'package:chat_app/state/aichatstate.dart';
 import 'package:chat_app/state/authstate.dart';
 import 'package:chat_app/state/chatstate.dart';
 import 'package:chat_app/state/groupstate.dart';
 import 'package:chat_app/state/unread_count_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
@@ -25,6 +28,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => GroupProvider()),
         ChangeNotifierProvider(create: (_) => UnreadCountProvider()),
+        ChangeNotifierProvider(
+          create: (_) => AiChatProvider('current_user_id'),
+        ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

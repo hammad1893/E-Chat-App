@@ -16,6 +16,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
@@ -28,6 +29,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
 class Chatscreen extends StatefulWidget {
@@ -80,7 +82,6 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
   final Set<String> _selectedMessages = {};
   bool _isSelecting = false;
 
-  List<MessageModel> _currentMessages = [];
   Duration _recordingDuration = Duration.zero;
   Timer? _recordingTimer;
   late String chatId;
@@ -135,7 +136,6 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
       setState(() {
         _cachedMessages = cachedMessages;
         _hasCachedMessages = true;
-        _currentMessages = cachedMessages;
       });
     }
   }
@@ -549,6 +549,237 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
     }
   }
 
+  // Add these helper functions to your chat screenimport 'package:url_launcher/url_launcher.dart';
+
+  bool _containsUrl(String text) {
+    final urlRegex = RegExp(
+      r'(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+',
+      caseSensitive: false,
+    );
+    return urlRegex.hasMatch(text);
+  }
+
+  String? _extractFirstUrl(String text) {
+    final urlRegex = RegExp(
+      r'(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+',
+      caseSensitive: false,
+    );
+    final match = urlRegex.firstMatch(text);
+    return match?.group(0);
+  }
+
+  String _extractDisplayUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return '${uri.host}${uri.path}';
+    } catch (e) {
+      return url.length > 30 ? '${url.substring(0, 30)}...' : url;
+    }
+  }
+
+  Widget _buildLinkMessage(String fullText, String url, bool isMe) {
+    // Use the improved validation
+    final bool isValidUrl = _isValidUrl(url);
+    final displayUrl = _extractDisplayUrl(url);
+
+    return GestureDetector(
+      onTap: isValidUrl ? () => _launchUrl(url) : null,
+      child: Container(
+        decoration: BoxDecoration(
+          color:
+              isMe
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color:
+                isMe
+                    ? Colors.white.withOpacity(0.3)
+                    : Colors.blue.withOpacity(0.3),
+          ),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // URL preview
+            Row(
+              children: [
+                Icon(
+                  Icons.link,
+                  color:
+                      isValidUrl
+                          ? (isMe ? Colors.white : Colors.blue)
+                          : Colors.grey,
+                  size: 16,
+                ),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    displayUrl,
+                    style: TextStyle(
+                      color:
+                          isValidUrl
+                              ? (isMe ? Colors.white : Colors.blue)
+                              : Colors.grey,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 6),
+            // Full message text
+            Text(
+              fullText,
+              style: TextStyle(
+                color: isMe ? Colors.white : Color(0xff2C2D3A),
+                fontSize: 14,
+              ),
+            ),
+            SizedBox(height: 4),
+            // Click hint
+            Text(
+              isValidUrl ? 'Tap to open link' : 'Invalid URL format',
+              style: TextStyle(
+                color:
+                    isValidUrl
+                        ? (isMe ? Colors.white.withOpacity(0.7) : Colors.grey)
+                        : Colors.orange,
+                fontSize: 10,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Add this validation function
+  bool _isValidUrl(String url) {
+    try {
+      if (url.isEmpty) return false;
+
+      // Clean the URL first
+      String cleanUrl = url.trim();
+
+      // Add scheme if missing
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        cleanUrl = 'https://$cleanUrl';
+      }
+
+      // Try parsing
+      final uri = Uri.parse(cleanUrl);
+
+      // Basic validation
+      return uri.host.isNotEmpty &&
+          (uri.scheme == 'http' || uri.scheme == 'https');
+    } catch (e) {
+      print('❌ URL validation failed for "$url": $e');
+      return false;
+    }
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      print('🔄 Attempting to launch URL: $urlString');
+
+      // Clean and validate URL first
+      String formattedUrl = urlString.trim();
+
+      // Remove any unwanted characters that might be at the end
+      formattedUrl = formattedUrl.replaceAll(RegExp(r'[.,!?;:]$'), '');
+
+      if (!formattedUrl.startsWith('http://') &&
+          !formattedUrl.startsWith('https://')) {
+        formattedUrl = 'https://$formattedUrl';
+      }
+
+      final Uri url = Uri.parse(formattedUrl);
+
+      print('📱 Parsed URL: $url');
+      print('📱 URL Scheme: ${url.scheme}');
+      print('📱 URL Host: ${url.host}');
+      print('📱 URL Path: ${url.path}');
+
+      // Check if URL can be launched with better error handling
+      bool canLaunch = false;
+      try {
+        canLaunch = await canLaunchUrl(url);
+      } catch (e) {
+        print('❌ canLaunchUrl error: $e');
+        canLaunch = false;
+      }
+
+      print('🔍 Can launch URL: $canLaunch');
+
+      if (canLaunch) {
+        print('🚀 Launching URL...');
+        final result = await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+          webViewConfiguration: const WebViewConfiguration(
+            enableDomStorage: true,
+            enableJavaScript: true,
+          ),
+        );
+
+        print('✅ URL launch result: $result');
+
+        if (!result) {
+          throw Exception('launchUrl returned false');
+        }
+      } else {
+        print('❌ Cannot launch URL - showing fallback options');
+
+        // Show more helpful error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Cannot open: ${url.host}'),
+                Text(
+                  'Try copying the URL instead',
+                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Copy',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: url.toString()));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('URL copied to clipboard'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      print('💥 URL Launch Error: $e');
+      print('📝 Stack trace: $stackTrace');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open URL'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Widget _buildShimmerLoadingState() {
     return ListView.builder(
       reverse: true,
@@ -782,12 +1013,19 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
       caseSensitive: false,
     );
 
-    return messages
-        .where((message) => urlRegex.hasMatch(message.text))
-        .map(
-          (message) => {'text': message.text, 'timestamp': message.timestamp},
-        )
-        .toList();
+    return messages.where((message) => urlRegex.hasMatch(message.text)).map((
+      message,
+    ) {
+      // Extract the first URL from the message
+      final match = urlRegex.firstMatch(message.text);
+      final url = match?.group(0) ?? '';
+
+      return {
+        'text': message.text,
+        'url': url, // Make sure this is included
+        'timestamp': message.timestamp,
+      };
+    }).toList();
   }
 
   List<Map<String, dynamic>> _getDocumentMessages(List<MessageModel> messages) {
@@ -1151,49 +1389,30 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
                           SizedBox(width: size.width * .015),
                           GestureDetector(
                             onTap: () {
+                              // Get messages from cache/provider without StreamBuilder
+                              final currentMessages = chatProvider
+                                  .getCachedMessages(chatId);
+
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder:
-                                      (
-                                        context,
-                                      ) => StreamBuilder<List<MessageModel>>(
-                                        stream: chatProvider.getMessagesStream(
-                                          currentUserId,
-                                          chatId,
+                                      (context) => ContactInfoScreen(
+                                        contactName: widget.name,
+                                        contactPhone: widget.phone,
+                                        contactImageUrl: widget.image,
+                                        chatId: chatId,
+                                        currentUserId: currentUserId,
+                                        receiverId: widget.receiverId,
+                                        mediaMessages: _getMediaMessages(
+                                          currentMessages!,
                                         ),
-                                        builder: (context, snapshot) {
-                                          if (snapshot.hasData) {
-                                            _currentMessages = snapshot.data!;
-                                            return ContactInfoScreen(
-                                              contactName: widget.name,
-                                              contactPhone: widget.phone,
-                                              contactImageUrl: widget.image,
-                                              chatId: chatId,
-                                              currentUserId: currentUserId,
-                                              receiverId: widget.receiverId,
-                                              mediaMessages: _getMediaMessages(
-                                                _currentMessages,
-                                              ),
-                                              linkMessages: _getLinkMessages(
-                                                _currentMessages,
-                                              ),
-                                              documentMessages:
-                                                  _getDocumentMessages(
-                                                    _currentMessages,
-                                                  ),
-                                            );
-                                          }
-                                          return Scaffold(
-                                            backgroundColor: const Color(
-                                              0xff292929,
-                                            ),
-                                            body: Center(
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            ),
-                                          );
-                                        },
+                                        linkMessages: _getLinkMessages(
+                                          currentMessages,
+                                        ),
+                                        documentMessages: _getDocumentMessages(
+                                          currentMessages,
+                                        ),
                                       ),
                                 ),
                               );
@@ -1249,7 +1468,6 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
                     _hasCachedMessages = true;
                     // _buildShimmerLoadingState = false;
                   }
-                  _currentMessages = messages;
 
                   if (messages.isEmpty && !_hasCachedMessages) {
                     return Center(
@@ -1442,58 +1660,6 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
       },
     );
   }
-
-  // NEW: Selection header widget
-  // Widget _buildSelectionHeader(Size size) {
-  //   return Container(
-  //     height: size.height * .08,
-  //     width: double.infinity,
-  //     decoration: const BoxDecoration(color: Color(0xff292929)),
-  //     child: Padding(
-  //       padding: const EdgeInsets.symmetric(horizontal: 16),
-  //       child: Row(
-  //         children: [
-  //           IconButton(
-  //             icon: Icon(Icons.delete, color: Colors.red),
-  //             onPressed: () async {
-  //               final deleteForEveryone =
-  //                   await showDialog<bool>(
-  //                     context: context,
-  //                     builder:
-  //                         (context) => AlertDialog(
-  //                           backgroundColor: Color(0xff2c2d3a),
-  //                           title: Text(
-  //                             "Delete message",
-  //                             style: TextStyle(color: Colors.white),
-  //                           ),
-  //                           content: Text(
-  //                             "Do you want to delete for everyone or just for you?",
-  //                             style: TextStyle(color: Colors.white70),
-  //                           ),
-  //                           actions: [
-  //                             TextButton(
-  //                               onPressed: () => Navigator.pop(context, false),
-  //                               child: Text("Delete for me"),
-  //                             ),
-  //                             TextButton(
-  //                               onPressed: () => Navigator.pop(context, true),
-  //                               child: Text("Delete for everyone"),
-  //                             ),
-  //                           ],
-  //                         ),
-  //                   ) ??
-  //                   false;
-
-  //               await _deleteSelectedMessages(
-  //                 deleteForEveryone: deleteForEveryone,
-  //               );
-  //             },
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
 
   String _getVideoThumbnailUrl(String videoUrl) {
     if (videoUrl.contains('cloudinary.com')) {
@@ -1997,6 +2163,9 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
 
   Widget _buildReceivedMessage(String text, String time) {
     Size size = MediaQuery.of(context).size;
+    final bool hasUrl = _containsUrl(text);
+    final String? url = _extractFirstUrl(text);
+
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -2014,10 +2183,14 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              text,
-              style: Apptexts.subtitlestyle.copyWith(color: Color(0xff2C2D3A)),
-            ),
+            hasUrl && url != null
+                ? _buildLinkMessage(text, url, false)
+                : Text(
+                  text,
+                  style: Apptexts.subtitlestyle.copyWith(
+                    color: Color(0xff2C2D3A),
+                  ),
+                ),
             const SizedBox(height: 6),
             Text(time, style: Apptexts.bodystyle.copyWith(color: Colors.grey)),
           ],
@@ -2033,6 +2206,9 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
     bool isReceiverOnline,
   ) {
     Size size = MediaQuery.of(context).size;
+    final bool hasUrl = _containsUrl(text);
+    final String? url = _extractFirstUrl(text);
+
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
@@ -2050,10 +2226,12 @@ class _ChatscreenState extends State<Chatscreen> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              text,
-              style: Apptexts.subtitlestyle.copyWith(color: Colors.white),
-            ),
+            hasUrl && url != null
+                ? _buildLinkMessage(text, url, true)
+                : Text(
+                  text,
+                  style: Apptexts.subtitlestyle.copyWith(color: Colors.white),
+                ),
             const SizedBox(height: 6),
             Row(
               mainAxisSize: MainAxisSize.min,

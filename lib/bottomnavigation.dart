@@ -1,3 +1,4 @@
+import 'package:chat_app/Aichatintegration/chatwithgemini.dart';
 import 'package:chat_app/folder/groupscreen.dart';
 import 'package:chat_app/homepage.dart/homescreen.dart';
 import 'package:chat_app/profilescreens/profilepage.dart';
@@ -36,6 +37,12 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
     Groupscreen(),
     Profilepage(),
   ];
+
+  // Method to check if FAB should be visible
+  bool get _isFabVisible {
+    // Show FAB only on HomeScreen (index 0) and GroupScreen (index 1)
+    return currentIndex == 0 || currentIndex == 1;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,30 +90,28 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
                           horizontal: 16,
                           vertical: 10,
                         ),
-                        decoration:
-                            isSelected
-                                ? BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF40C4FF),
-                                      Color(0xFF17A1FF),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                )
-                                : null,
+                        decoration: isSelected
+                            ? BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF40C4FF),
+                                    Color(0xFF17A1FF),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              )
+                            : null,
                         child: Row(
                           children: [
                             Stack(
                               children: [
                                 Icon(
                                   item["icon"],
-                                  color:
-                                      isSelected
-                                          ? Colors.white
-                                          : Colors.grey[400],
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.grey[400],
                                 ),
                                 // Show badge only if there are unread messages
                                 if (unreadCount > 0 &&
@@ -160,6 +165,17 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
           );
         },
       ),
+      // Conditionally show FAB based on current screen
+      floatingActionButton: _isFabVisible
+          ? FloatingActionButton(
+              backgroundColor: const Color(0xFF40C4FF),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => AiChatScreen()),
+              ),
+              child: const Icon(Icons.smart_toy_outlined, color: Colors.white),
+            )
+          : null,
     );
   }
 }

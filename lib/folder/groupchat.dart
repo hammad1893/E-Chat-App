@@ -23,6 +23,7 @@ import 'package:chat_app/state/groupstate.dart';
 import 'package:chat_app/model/groupmessagemodel.dart';
 import 'package:chat_app/constants/text.dart';
 import 'package:chat_app/constants/utils.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
 class GroupChatScreen extends StatefulWidget {
@@ -238,7 +239,6 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
     return "$twoDigitMinutes:$twoDigitSeconds";
   }
-
 
   // Voice Recording Methods
   Future<void> _startRecording() async {
@@ -766,8 +766,132 @@ class _GroupChatScreenState extends State<GroupChatScreen>
     }
   }
 
+  // Add these URL detection methods
+  bool _containsUrl(String text) {
+    final urlRegex = RegExp(
+      r'(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+',
+      caseSensitive: false,
+    );
+    return urlRegex.hasMatch(text);
+  }
+
+  String? _extractFirstUrl(String text) {
+    final urlRegex = RegExp(
+      r'(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-?=%.]+',
+      caseSensitive: false,
+    );
+    final match = urlRegex.firstMatch(text);
+    return match?.group(0);
+  }
+
+  String _extractDisplayUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return '${uri.host}${uri.path}';
+    } catch (e) {
+      return url.length > 30 ? '${url.substring(0, 30)}...' : url;
+    }
+  }
+
+  bool _isValidUrl(String url) {
+    try {
+      if (url.isEmpty) return false;
+
+      // Clean the URL first
+      String cleanUrl = url.trim();
+
+      // Add scheme if missing
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        cleanUrl = 'https://$cleanUrl';
+      }
+
+      // Try parsing
+      final uri = Uri.parse(cleanUrl);
+
+      // Basic validation
+      return uri.host.isNotEmpty &&
+          (uri.scheme == 'http' || uri.scheme == 'https');
+    } catch (e) {
+      print('❌ URL validation failed for "$url": $e');
+      return false;
+    }
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      print('🔄 Attempting to launch URL: $urlString');
+
+      // Clean and validate URL first
+      String formattedUrl = urlString.trim();
+
+      // Remove any unwanted characters that might be at the end
+      formattedUrl = formattedUrl.replaceAll(RegExp(r'[.,!?;:]$'), '');
+
+      if (!formattedUrl.startsWith('http://') &&
+          !formattedUrl.startsWith('https://')) {
+        formattedUrl = 'https://$formattedUrl';
+      }
+
+      final Uri url = Uri.parse(formattedUrl);
+
+      print('📱 Parsed URL: $url');
+      print('📱 URL Scheme: ${url.scheme}');
+      print('📱 URL Host: ${url.host}');
+
+      // Check if URL can be launched
+      bool canLaunch = false;
+      try {
+        canLaunch = await canLaunchUrl(url);
+      } catch (e) {
+        print('❌ canLaunchUrl error: $e');
+        canLaunch = false;
+      }
+
+      print('🔍 Can launch URL: $canLaunch');
+
+      if (canLaunch) {
+        print('🚀 Launching URL...');
+        final result = await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+          webViewConfiguration: const WebViewConfiguration(
+            enableDomStorage: true,
+            enableJavaScript: true,
+          ),
+        );
+
+        print('✅ URL launch result: $result');
+
+        if (!result) {
+          throw Exception('launchUrl returned false');
+        }
+      } else {
+        print('❌ Cannot launch URL');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cannot open: ${url.host}'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      print('💥 URL Launch Error: $e');
+      print('📝 Stack trace: $stackTrace');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open URL'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Widget _buildGroupTextMessage(GroupMessageModel message, bool isMe) {
     final time = formatTime(message.timestamp);
+    final text = message.text ?? '';
 
     // FIXED: Use enhanced user name fetching
     final String senderName;
@@ -777,6 +901,12 @@ class _GroupChatScreenState extends State<GroupChatScreen>
       // Check if user exists in contacts first
       senderName = _getUserName(message.senderId!, message.senderName);
     }
+
+    // Check if message contains URL
+    final containsUrl = _containsUrl(text);
+    final url = containsUrl ? _extractFirstUrl(text) : null;
+    final isValidUrl = url != null ? _isValidUrl(url) : false;
+    final displayUrl = url != null ? _extractDisplayUrl(url) : '';
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -808,10 +938,78 @@ class _GroupChatScreenState extends State<GroupChatScreen>
                 ),
               ),
             if (!isMe) const SizedBox(height: 6),
+
+            // URL Preview Section
+            if (containsUrl && isValidUrl)
+              GestureDetector(
+                onTap: () => _launchUrl(url),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color:
+                        isMe
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color:
+                          isMe
+                              ? Colors.white.withOpacity(0.3)
+                              : Colors.blue.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // URL preview
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.link,
+                            color: isMe ? Colors.white : Colors.blue,
+                            size: 16,
+                          ),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              displayUrl,
+                              style: TextStyle(
+                                color: isMe ? Colors.white : Colors.blue,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 4),
+                      // Click hint
+                      Text(
+                        'Tap to open link',
+                        style: TextStyle(
+                          color:
+                              isMe
+                                  ? Colors.white.withOpacity(0.7)
+                                  : Colors.grey,
+                          fontSize: 10,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            if (containsUrl && isValidUrl) const SizedBox(height: 8),
+
+            // Message Text
             Text(
-              message.text ?? '',
+              text,
               style: TextStyle(color: isMe ? Colors.white : Colors.black87),
             ),
+
             const SizedBox(height: 6),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -2163,43 +2361,31 @@ class _GroupChatScreenState extends State<GroupChatScreen>
               ),
               SizedBox(width: size.width * .02),
               GestureDetector(
-                onTap: () async {
-                  // Show loading
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder:
-                        (context) => Center(child: CircularProgressIndicator()),
+                onTap: () {
+                  final groupProvider = Provider.of<GroupProvider>(
+                    context,
+                    listen: false,
                   );
 
-                  try {
-                    final groupProvider = Provider.of<GroupProvider>(
-                      context,
-                      listen: false,
-                    );
-                    final messages =
-                        await groupProvider
-                            .getGroupMessages(widget.groupId)
-                            .first;
+                  // Get messages from cache without loading
+                  final cachedMessages = groupProvider.getCachedGroupMessages(
+                    widget.groupId,
+                  );
 
-                    Navigator.pop(context); // Close loading
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => GroupInfoScreen(
-                              groupId: widget.groupId,
-                              mediaMessages: _getMediaMessages(messages),
-                              linkMessages: _getLinkMessages(messages),
-                              documentMessages: _getDocumentMessages(messages),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => GroupInfoScreen(
+                            groupId: widget.groupId,
+                            mediaMessages: _getMediaMessages(cachedMessages!),
+                            linkMessages: _getLinkMessages(cachedMessages),
+                            documentMessages: _getDocumentMessages(
+                              cachedMessages,
                             ),
-                      ),
-                    );
-                  } catch (e) {
-                    Navigator.pop(context); // Close loading
-                    SnackbarMessage.failedsnack('Error: $e', context);
-                  }
+                          ),
+                    ),
+                  );
                 },
                 child: Icon(Icons.more_vert, color: Colors.white, size: 25),
               ),

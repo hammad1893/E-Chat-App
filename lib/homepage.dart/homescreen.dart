@@ -334,16 +334,15 @@ class _HomescreenState extends State<Homescreen> {
                 await chatProvider.markMessagesAsRead(chatId, currentUserId);
 
                 // ✅ Navigate to chat screen
-                 Navigator.push(
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder:
                         (context) => Chatscreen(
-                          name: userInfo['name'] ?? "Unknown",
-                          image:
-                              userInfo['image'] ?? "assets/images/profile.png",
+                          name: userInfo['name'].toString(),
+                          image: userInfo['image'].toString(),
                           receiverId: otherParticipantId,
-                          phone: userInfo['phone'] ?? '',
+                          phone: userInfo['phone'].toString(),
                           senderId: currentUserId,
                         ),
                   ),

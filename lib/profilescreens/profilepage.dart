@@ -1,5 +1,3 @@
-// ignore_for_file: use_build_context_synchronously
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:chat_app/constants/text.dart';
@@ -55,6 +53,19 @@ class _ProfilepageState extends State<Profilepage> {
     final authState = Provider.of<Authstate>(context);
     final user = authState.usermodel;
     Size size = MediaQuery.of(context).size;
+
+    // Show loading while user data is null
+    if (user == null) {
+      return Scaffold(
+        backgroundColor: Color(0xff292929),
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xff40C4FF)),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Color(0xff292929),
       body: Column(
@@ -105,13 +116,13 @@ class _ProfilepageState extends State<Profilepage> {
                 backgroundImage:
                     (_image != null)
                         ? FileImage(_image!) as ImageProvider
-                        : (user!.profilePicture != null &&
+                        : (user.profilePicture != null &&
                             user.profilePicture!.isNotEmpty)
                         ? NetworkImage(user.profilePicture!)
                         : null,
                 child:
                     (_image == null &&
-                            (user!.profilePicture == null ||
+                            (user.profilePicture == null ||
                                 user.profilePicture!.isEmpty))
                         ? const Icon(
                           Icons.person,
@@ -140,7 +151,7 @@ class _ProfilepageState extends State<Profilepage> {
           ),
           SizedBox(height: size.height * .02),
           Text(
-            user!.name ?? "No Name",
+            user.name ?? "No Name",
             style: Apptexts.titlestyle.copyWith(color: Colors.white),
           ),
           SizedBox(height: size.height * .04),
@@ -228,9 +239,15 @@ class _ProfilepageState extends State<Profilepage> {
     final authState = Provider.of<Authstate>(context, listen: false);
     final user = authState.usermodel;
 
-    nameController.text = user?.name ?? "";
-    phoneController.text = user?.phoneNumber ?? "";
-    emailController.text = user?.email ?? "";
+    // Add null check for user
+    if (user == null) {
+      SnackbarMessage.failedsnack("User data not available", context);
+      return;
+    }
+
+    nameController.text = user.name ?? "";
+    phoneController.text = user.phoneNumber ?? "";
+    emailController.text = user.email ?? "";
 
     Size size = MediaQuery.of(context).size;
     showModalBottomSheet(
@@ -356,9 +373,7 @@ class _ProfilepageState extends State<Profilepage> {
                           });
                         },
                       ),
-
                       SizedBox(height: size.height * .02),
-
                       Text(
                         "Date of Birth",
                         style: Apptexts.subtitlestyle.copyWith(
@@ -404,9 +419,7 @@ class _ProfilepageState extends State<Profilepage> {
                           ),
                         ),
                       ),
-
                       SizedBox(height: size.height * .02),
-
                       Text(
                         "Email",
                         style: Apptexts.subtitlestyle.copyWith(
@@ -424,7 +437,6 @@ class _ProfilepageState extends State<Profilepage> {
                           ),
                         ),
                       ),
-
                       SizedBox(height: size.height * .03),
                       Row(
                         children: [
@@ -471,6 +483,7 @@ class _ProfilepageState extends State<Profilepage> {
     );
   }
 
+  // Rest of your methods (pickImage, uploadImageToCloudinary, saveProfile) remain the same...
   Future<void> pickImage() async {
     final ImagePicker picker = ImagePicker();
     if (kIsWeb) {

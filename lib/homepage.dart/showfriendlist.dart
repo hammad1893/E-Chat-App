@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class Friendlist extends StatefulWidget {
   const Friendlist({super.key});
@@ -344,9 +345,6 @@ class _FriendlistState extends State<Friendlist> {
                           }
 
                           if (snapshot.hasError) {
-                            print(
-                              "Error checking user registration: ${snapshot.error}",
-                            );
                             return const Icon(Icons.error, color: Colors.red);
                           }
 
@@ -382,14 +380,15 @@ class _FriendlistState extends State<Friendlist> {
                               },
                             );
                           } else {
+                            // Simple Invite Button
                             return TextButton(
-                              onPressed: () {
-                                // Implement invite functionality
-                                _inviteContact(displayPhone);
-                              },
-                              child: const Text(
+                              onPressed: () => _inviteContact(phone, name),
+                              child: Text(
                                 "Invite",
-                                style: TextStyle(color: Colors.blue),
+                                style: TextStyle(
+                                  color: Colors.blue,
+                                  fontSize: 14,
+                                ),
                               ),
                             );
                           }
@@ -406,10 +405,64 @@ class _FriendlistState extends State<Friendlist> {
     );
   }
 
-  void _inviteContact(String phone) {
-    print("Inviting $phone to join the app");
-    // You can implement SMS/WhatsApp invite functionality here
+  void _inviteContact(String phone, String contactName) async {
+  try {
+    print("📱 Starting invite process for $contactName ($phone)");
+
+    final userId = _auth.currentUser!.uid;
+    final userDoc = await _firestore.collection('users').doc(userId).get();
+    final userName = userDoc.data()?['name'] ?? 'Your friend';
+
+    // Store in Firebase first
+    print("💾 Storing invite in Firebase...");
+    await _firestore.collection('invites').add({
+      'fromUserId': userId,
+      'fromUserName': userName,
+      'toPhone': phone,
+      'toContactName': contactName,
+      'timestamp': FieldValue.serverTimestamp(),
+      'status': 'pending',
+    });
+    print("✅ Invite stored in Firebase");
+
+    // Create SMS message with your APK download link
+    final message =
+        "Hi $contactName! $userName invited you to join ChatApp. Download the app here: https://yourapkdownloadlink.com/app.apk";
+
+    // Create SMS URL
+    final smsUrl = 'sms:${phone.trim()}?body=${Uri.encodeComponent(message)}';
+    
+    print("📤 Launching SMS app: $smsUrl");
+
+    // Launch SMS app
+    if (await canLaunchUrl(Uri.parse(smsUrl))) {
+      await launchUrl(Uri.parse(smsUrl));
+      print("✅ SMS app launched successfully");
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invite sent to $contactName!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } else {
+      print("❌ Cannot launch SMS app");
+      throw 'Cannot open SMS app';
+    }
+
+  } catch (e) {
+    print('💥 Error in _inviteContact: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to send invite: $e'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
+}
 
   Widget _buildTopBar(Size size) {
     return Container(

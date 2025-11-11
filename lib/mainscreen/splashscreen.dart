@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'package:chat_app/bottomnavigation.dart';
 import 'package:chat_app/mainscreen/onboardinscreen.dart';
@@ -89,9 +88,13 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset('assets/images/Logo.png', fit: BoxFit.cover),
-
-                  const SizedBox(height: 20),
+                  SizedBox(height: 50),
+                  Image.asset(
+                    'assets/images/Logo.png',
+                    height: 100,
+                    width: 200,
+                    fit: BoxFit.cover,
+                  ),
                   const Text(
                     'E-Chat',
                     style: TextStyle(
