@@ -32,7 +32,7 @@ class AuthModel {
     String? profilePicture,
     String? gender,
     String? dob,
-    String? updatedAt,
+    DateTime? updatedAt, 
   }) {
     return AuthModel(
       id: id,
@@ -41,33 +41,43 @@ class AuthModel {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       profilePicture: profilePicture ?? this.profilePicture,
       passwordHash: passwordHash,
-      dob: dob,
-      gender: gender,
+      dob: dob ?? this.dob,
+      gender: gender ?? this.gender,
       timestamp: timestamp,
-      updatedAt: timestamp ?? this.updatedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  // Helper to parse multiple timestamp types
+  DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    try {
+      if (value is Timestamp) {
+        return value.toDate();
+      } else if (value is DateTime) {
+        return value;
+      } else if (value is int) {
+        // epoch millis
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      } else if (value is String) {
+        return DateTime.tryParse(value);
+      }
+    } catch (_) {}
+    return null;
   }
 
   AuthModel.fromJson(Map<String, dynamic> json) {
     id = json['id'];
-    name = json['name'];
-    email = json['email'];
+    name = json['name'] ?? '';
+    email = json['email'] ?? '';
     passwordHash = json['passwordHash'];
     phoneNumber = json['phoneNumber'];
-    profilePicture = json['profilePicture'];
+    profilePicture = json['profilePicture'] ?? '';
     dob = json['dob'];
     gender = json['gender'];
 
-    // ✅ Convert Firestore Timestamps to DateTime
-    timestamp =
-        json['timestamp'] != null
-            ? (json['timestamp'] as Timestamp).toDate()
-            : null;
-
-    updatedAt =
-        json['updatedAt'] != null
-            ? (json['updatedAt'] as Timestamp).toDate()
-            : null;
+    timestamp = _parseDateTime(json['timestamp']);
+    updatedAt = _parseDateTime(json['updatedAt']);
   }
 
   Map<String, dynamic> toJson() {

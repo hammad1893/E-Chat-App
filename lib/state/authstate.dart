@@ -71,9 +71,9 @@ class Authstate extends ChangeNotifier {
       DocumentSnapshot snapshot =
           await _firestore.collection("users").doc(uid).get();
       if (snapshot.exists && snapshot.data() != null) {
-        _usermodel = AuthModel.fromJson(
-          snapshot.data() as Map<String, dynamic>,
-        );
+        final data = snapshot.data() as Map<String, dynamic>;
+        print("Firestore user data: $data"); 
+        _usermodel = AuthModel.fromJson(data);
         notifyListeners();
       } else {
         print("❌ User document not found in Firestore");
@@ -99,9 +99,7 @@ class Authstate extends ChangeNotifier {
 
       String uid = currentUser.uid;
 
-      final updateData = <String, dynamic>{
-        'updatedAt': DateTime.now().toString(),
-      };
+      final updateData = <String, dynamic>{'updatedAt': DateTime.now()};
 
       if (name != null) updateData['name'] = name;
       if (phone != null) updateData['phoneNumber'] = phone;
@@ -118,10 +116,9 @@ class Authstate extends ChangeNotifier {
           profilePicture: imageUrl ?? _usermodel!.profilePicture,
           gender: gender ?? _usermodel!.gender,
           dob: dob ?? _usermodel!.dob,
-          updatedAt: DateTime.now().toString(),
+          updatedAt: DateTime.now(),
         );
       } else {
-        // If local model is null, reload it
         await loaduserdate();
       }
 
@@ -200,7 +197,6 @@ class Authstate extends ChangeNotifier {
             await _firestore.collection("users").doc(user.uid).get();
 
         if (!doc.exists) {
-          // 🆕 New user → save to Firestore and go to User Info screen
           await _saveUserToFirestore(user);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Navigator.pushAndRemoveUntil(
@@ -210,7 +206,6 @@ class Authstate extends ChangeNotifier {
             );
           });
         } else {
-          // 👤 Existing user → load data and go to Home
           _usermodel = AuthModel.fromJson(doc.data() as Map<String, dynamic>);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Navigator.pushAndRemoveUntil(

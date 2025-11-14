@@ -1056,7 +1056,7 @@ class _GroupChatScreenState extends State<GroupChatScreen>
         decoration: BoxDecoration(
           border: Border.all(
             color: isMe ? Color(0xff1565C0) : Colors.grey.shade400,
-            width: 5, // your desired border width
+            width: 5, 
           ),
           borderRadius: BorderRadius.circular(12),
         ),
