@@ -1,10 +1,10 @@
 import 'package:chat_app/firebase_options.dart';
-import 'package:chat_app/mainscreen/splashscreen.dart';
-import 'package:chat_app/state/aichatstate.dart';
-import 'package:chat_app/state/authstate.dart';
-import 'package:chat_app/state/chatstate.dart';
-import 'package:chat_app/state/groupstate.dart';
-import 'package:chat_app/state/unread_count_provider.dart';
+import 'package:chat_app/view/screens/mainscreen/splashscreen.dart';
+import 'package:chat_app/view_model/aichatstate.dart';
+import 'package:chat_app/view_model/authstate.dart';
+import 'package:chat_app/view_model/chatstate.dart';
+import 'package:chat_app/view_model/groupstate.dart';
+import 'package:chat_app/view_model/unread_count_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
